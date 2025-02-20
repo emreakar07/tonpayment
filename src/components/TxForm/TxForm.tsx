@@ -1,12 +1,39 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
-import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
+import { CHAIN, SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
+import { createClient } from '@supabase/supabase-js';
+
+// Telegram WebApp için tip tanımlaması
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp: {
+        close: () => void;
+      };
+    };
+  }
+}
+
+// Supabase client oluşturma
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 interface PaymentData {
   amount: string;
   address: string;
   orderId: string;
   productName: string;
+}
+
+interface Order {
+  id: string;
+  amount: string;
+  status: 'pending' | 'completed' | 'failed';
+  transaction_hash?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // In this example, we are using a predefined smart contract state initialization (`stateInit`)
@@ -41,43 +68,100 @@ const defaultTx: SendTransactionRequest = {
 export function TxForm() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
+  const [orderId, setOrderId] = useState('');
+  const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
 
   useEffect(() => {
-    // URL'den payment_data parametresini al
     const urlParams = new URLSearchParams(window.location.search);
     const paymentDataBase64 = urlParams.get('payment_data');
 
     if (paymentDataBase64) {
       try {
-        // Base64'ten decode et
         const decodedData = atob(paymentDataBase64);
         const paymentData: PaymentData = JSON.parse(decodedData);
 
-        // Amount'u TON'dan nanoTON'a çevir (1 TON = 1_000_000_000 nanoTON)
         const amountInNano = (parseFloat(paymentData.amount) * 1_000_000_000).toString();
         
         setAmount(amountInNano);
         setAddress(paymentData.address);
+        setOrderId(paymentData.orderId); // Order ID'yi state'e kaydet
       } catch (error) {
         console.error('Error parsing payment data:', error);
       }
     }
   }, []);
 
-  const handleSend = useCallback(() => {
-    const tx: SendTransactionRequest = {
-      validUntil: Math.floor(Date.now() / 1000) + 600,
-      messages: [
-        {
-          address: address,
-          amount: amount,
+  const updateOrderStatus = async (transactionHash: string) => {
+    try {
+      // Önce order'ı kontrol et
+      const { data: order, error: fetchError } = await supabase
+        .from('orders')
+        .select('amount')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Amount kontrolü (nanoTON'dan TON'a çevirip karşılaştır)
+      const paidAmount = Number(amount) / 1_000_000_000;
+      if (paidAmount !== Number(order.amount)) {
+        throw new Error('Payment amount mismatch');
+      }
+
+      // Order'ı güncelle
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          status: 'completed',
+          transaction_hash: transactionHash,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      setTxStatus('error');
+      throw error;
+    }
+  };
+
+  const handleSend = useCallback(async () => {
+    try {
+      setTxStatus('pending');
+      const tx: SendTransactionRequest = {
+        validUntil: Math.floor(Date.now() / 1000) + 600,
+        messages: [
+          {
+            address: address,
+            amount: amount,
+          }
+        ],
+      };
+      
+      const result = await tonConnectUi.sendTransaction(tx);
+      
+      if (result) {
+        // Transaction hash'i al ve Supabase'i güncelle
+        const transactionHash = result.boc; // veya uygun transaction hash field'ı
+        await updateOrderStatus(transactionHash);
+        
+        setTxStatus('success');
+        
+        // Başarılı işlem sonrası yönlendirme
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.close();
         }
-      ],
-    };
-    tonConnectUi.sendTransaction(tx);
-  }, [address, amount, tonConnectUi]);
+      }
+
+    } catch (err) {
+      setTxStatus('error');
+      console.error("Transaction hatası:", err);
+    }
+  }, [address, amount, orderId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
@@ -118,6 +202,14 @@ export function TxForm() {
           </div>
         )}
       </div>
+
+      {txStatus && (
+        <div className={`transaction-status ${txStatus}`}>
+          {txStatus === 'pending' && 'İşlem gönderiliyor...'}
+          {txStatus === 'success' && 'İşlem başarıyla tamamlandı!'}
+          {txStatus === 'error' && 'İşlem başarısız oldu!'}
+        </div>
+      )}
     </div>
   );
 }

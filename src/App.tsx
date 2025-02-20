@@ -3,9 +3,11 @@ import {THEME, TonConnectUIProvider} from "@tonconnect/ui-react";
 import {TxForm} from "./components/TxForm/TxForm";
 
 function App() {
+  const baseUrl = window.location.origin;
+  
   return (
       <TonConnectUIProvider
-          manifestUrl="https://ton-payment.vercel.app/tonconnect-manifest.json"
+          manifestUrl={`${baseUrl}/tonconnect-manifest.json`}
           uiPreferences={{ theme: THEME.DARK }}
           walletsListConfiguration={{
             includeWallets: [

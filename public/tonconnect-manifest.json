@@ -1,7 +1,7 @@
 {
-  "url": "https://ton-payment.vercel.app/",
+  "url": "https://tonpayment-ten.vercel.app/",
   "name": "Ton Payment",
-  "iconUrl": "https://ton-payment.vercel.app/icon.png",
-  "termsOfUseUrl": "https://ton-payment.vercel.app/terms-of-use.txt",
-  "privacyPolicyUrl": "https://ton-payment.vercel.app/privacy-policy.txt"
+  "iconUrl": "https://tonpayment-ten.vercel.app/icon.png",
+  "termsOfUseUrl": "https://tonpayment-ten.vercel.app/terms-of-use.txt",
+  "privacyPolicyUrl": "https://tonpayment-ten.vercel.app/privacy-policy.txt"
 }

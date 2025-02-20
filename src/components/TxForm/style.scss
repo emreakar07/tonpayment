@@ -62,3 +62,25 @@
     border-radius: 6px;
   }
 }
+
+.transaction-status {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+  text-align: center;
+  
+  &.pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  &.success {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  &.error {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+}
