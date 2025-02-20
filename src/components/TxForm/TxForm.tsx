@@ -81,87 +81,20 @@ export function TxForm() {
       try {
         const decodedData = atob(paymentDataBase64);
         const paymentData: PaymentData = JSON.parse(decodedData);
-
         const amountInNano = (parseFloat(paymentData.amount) * 1_000_000_000).toString();
-        
         setAmount(amountInNano);
         setAddress(paymentData.address);
-        setOrderId(paymentData.orderId); // Order ID'yi state'e kaydet
+        setOrderId(paymentData.orderId);
       } catch (error) {
         console.error('Error parsing payment data:', error);
       }
     }
   }, []);
 
-  const updateOrderStatus = async (transactionHash: string) => {
-    try {
-      // Önce order'ı kontrol et
-      const { data: order, error: fetchError } = await supabase
-        .from('orders')
-        .select('amount_ton')
-        .eq('id', orderId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Amount kontrolü (nanoTON'dan TON'a çevirip karşılaştır)
-      const paidAmount = Number(amount) / 1_000_000_000;
-      if (paidAmount !== Number(order.amount_ton)) {
-        throw new Error('Payment amount mismatch');
-      }
-
-      // Order'ı güncelle
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          status: 'completed',
-          transaction_hash: transactionHash,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
-
-      if (updateError) throw updateError;
-
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      setTxStatus('error');
-      throw error;
-    }
-  };
-
-  // txStatus değiştiğinde çalışacak useEffect
-  useEffect(() => {
-    const handleStatusChange = async () => {
-      if (txStatus === 'success') {
-        try {
-          // Transaction hash'i al (bunu bir state olarak tutmalıyız)
-          const { data: order } = await supabase
-            .from('orders')
-            .select('transaction_hash')
-            .eq('id', orderId)
-            .single();
-
-          if (order?.transaction_hash) {
-            await updateOrderStatus(order.transaction_hash);
-            
-            // Başarılı işlem sonrası Telegram WebApp'i kapat
-            if (window.Telegram?.WebApp) {
-              window.Telegram.WebApp.close();
-            }
-          }
-        } catch (error) {
-          console.error('Error updating order:', error);
-          setTxStatus('error');
-        }
-      }
-    };
-
-    handleStatusChange();
-  }, [txStatus, orderId]);
-
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
+      
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
         messages: [
@@ -172,6 +105,7 @@ export function TxForm() {
         ],
       };
       
+      // Transaction'ı gönder
       const result = await tonConnectUi.sendTransaction(tx);
       
       if (result) {
@@ -188,13 +122,22 @@ export function TxForm() {
             })
             .eq('id', orderId);
 
-          if (updateError) throw updateError;
-
-          // UI'ı güncelle ve WebApp'i kapat
-          setTxStatus('success');
-          if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.close();
+          if (updateError) {
+            console.error('Supabase update error:', updateError);
+            setTxStatus('error');
+            return;
           }
+
+          // Başarılı durumda
+          setTxStatus('success');
+          
+          // 1 saniye bekle ve sonra WebApp'i kapat
+          setTimeout(() => {
+            if (window.Telegram?.WebApp) {
+              window.Telegram.WebApp.close();
+            }
+          }, 1000);
+          
         } catch (error) {
           console.error('Error updating order:', error);
           setTxStatus('error');
