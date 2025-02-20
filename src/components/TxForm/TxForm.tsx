@@ -142,63 +142,76 @@ export function TxForm() {
         ],
       };
       
-      // Transaction'ı gönder
       const result = await tonConnectUi.sendTransaction(tx);
       
       if (result) {
-        // Transaction hash'i al
         const transactionHash = result.boc;
-        
-        // Transaction'ın tamamlanmasını bekle
         let attempts = 0;
         const maxAttempts = 20; // maksimum 20 deneme (toplam 60 saniye)
         
-        const checkTransaction = async () => {
+        // setInterval kullanarak sürekli kontrol
+        const intervalId = setInterval(async () => {
           try {
-            // Transaction'ı kontrol et
+            attempts++;
+            console.log(`Checking transaction attempt ${attempts}`); // Debug için
+
             const { data: txData, error: txError } = await supabase
               .from('orders')
               .select('status')
               .eq('id', orderId)
               .single();
 
-            if (txError) throw txError;
-
-            if (attempts >= maxAttempts) {
-              setTxStatus('error');
-              throw new Error('Transaction timeout');
+            if (txError) {
+              console.error('Error checking status:', txError);
+              return; // Hata durumunda interval devam etsin
             }
 
-            attempts++;
+            console.log('Current order status:', txData?.status); // Debug için
 
-            // Transaction hala pending durumunda, tekrar dene
-            if (txData.status === 'pending') {
-              setTimeout(checkTransaction, 3000); // 3 saniye sonra tekrar dene
+            if (txData?.status === 'completed') {
+              // İşlem zaten tamamlanmış
+              clearInterval(intervalId);
+              setTxStatus('success');
+              
+              if (window.Telegram?.WebApp) {
+                window.Telegram.WebApp.close();
+              }
               return;
             }
 
-            // Transaction başarılı olduysa güncelle
-            await updateOrderStatus(transactionHash);
-            setTxStatus('success');
-            
-            // Başarılı işlem sonrası yönlendirme
-            if (window.Telegram?.WebApp) {
-              window.Telegram.WebApp.close();
-            }
-          } catch (error) {
-            console.error('Error checking transaction:', error);
-            if (attempts < maxAttempts) {
-              setTimeout(checkTransaction, 3000); // Hata durumunda da tekrar dene
-            } else {
+            if (attempts >= maxAttempts) {
+              clearInterval(intervalId);
               setTxStatus('error');
+              console.error('Transaction timeout after max attempts');
+              return;
             }
+
+            // Status hala pending ise güncellemeyi dene
+            if (txData?.status === 'pending') {
+              try {
+                await updateOrderStatus(transactionHash);
+                clearInterval(intervalId);
+                setTxStatus('success');
+                
+                if (window.Telegram?.WebApp) {
+                  window.Telegram.WebApp.close();
+                }
+              } catch (updateError) {
+                console.error('Error updating order:', updateError);
+                // Güncelleme hatası durumunda interval devam etsin
+              }
+            }
+
+          } catch (checkError) {
+            console.error('Error in check interval:', checkError);
+            // Genel hata durumunda interval devam etsin
           }
-        };
+        }, 3000); // Her 3 saniyede bir kontrol et
 
-        // İlk kontrolü başlat
-        setTimeout(checkTransaction, 3000); // İlk kontrol için 3 saniye bekle
-
+        // Component unmount olduğunda interval'i temizle
+        return () => clearInterval(intervalId);
       }
+
     } catch (err) {
       console.error("Transaction hatası:", err);
       setTxStatus('error');
