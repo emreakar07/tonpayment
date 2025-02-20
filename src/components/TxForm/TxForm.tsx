@@ -17,7 +17,7 @@ declare global {
 // Supabase client oluşturma
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+  import.meta.env.VITE_SUPABASE_KEY
 );
 
 interface PaymentData {
@@ -98,7 +98,7 @@ export function TxForm() {
       // Önce order'ı kontrol et
       const { data: order, error: fetchError } = await supabase
         .from('orders')
-        .select('amount')
+        .select('amount_ton')
         .eq('id', orderId)
         .single();
 
@@ -106,7 +106,7 @@ export function TxForm() {
 
       // Amount kontrolü (nanoTON'dan TON'a çevirip karşılaştır)
       const paidAmount = Number(amount) / 1_000_000_000;
-      if (paidAmount !== Number(order.amount)) {
+      if (paidAmount !== Number(order.amount_ton)) {
         throw new Error('Payment amount mismatch');
       }
 
@@ -116,7 +116,7 @@ export function TxForm() {
         .update({
           status: 'completed',
           transaction_hash: transactionHash,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
 
