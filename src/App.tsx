@@ -232,7 +232,7 @@ function App() {
             ]
           }}
           actionsConfiguration={{
-              twaReturnUrl: 'https://t.me/DemoDappWithTonConnectBot/demo'
+              twaReturnUrl: 'https://t.me/electronicpinbot/tonpayment'
           }}
       >
         <div className="app">
