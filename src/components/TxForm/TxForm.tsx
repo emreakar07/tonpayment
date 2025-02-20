@@ -142,24 +142,66 @@ export function TxForm() {
         ],
       };
       
+      // Transaction'ı gönder
       const result = await tonConnectUi.sendTransaction(tx);
       
       if (result) {
-        // Transaction hash'i al ve Supabase'i güncelle
-        const transactionHash = result.boc; // veya uygun transaction hash field'ı
-        await updateOrderStatus(transactionHash);
+        // Transaction hash'i al
+        const transactionHash = result.boc;
         
-        setTxStatus('success');
+        // Transaction'ın tamamlanmasını bekle
+        let attempts = 0;
+        const maxAttempts = 20; // maksimum 20 deneme (toplam 60 saniye)
         
-        // Başarılı işlem sonrası yönlendirme
-        if (window.Telegram?.WebApp) {
-          window.Telegram.WebApp.close();
-        }
-      }
+        const checkTransaction = async () => {
+          try {
+            // Transaction'ı kontrol et
+            const { data: txData, error: txError } = await supabase
+              .from('orders')
+              .select('status')
+              .eq('id', orderId)
+              .single();
 
+            if (txError) throw txError;
+
+            if (attempts >= maxAttempts) {
+              setTxStatus('error');
+              throw new Error('Transaction timeout');
+            }
+
+            attempts++;
+
+            // Transaction hala pending durumunda, tekrar dene
+            if (txData.status === 'pending') {
+              setTimeout(checkTransaction, 3000); // 3 saniye sonra tekrar dene
+              return;
+            }
+
+            // Transaction başarılı olduysa güncelle
+            await updateOrderStatus(transactionHash);
+            setTxStatus('success');
+            
+            // Başarılı işlem sonrası yönlendirme
+            if (window.Telegram?.WebApp) {
+              window.Telegram.WebApp.close();
+            }
+          } catch (error) {
+            console.error('Error checking transaction:', error);
+            if (attempts < maxAttempts) {
+              setTimeout(checkTransaction, 3000); // Hata durumunda da tekrar dene
+            } else {
+              setTxStatus('error');
+            }
+          }
+        };
+
+        // İlk kontrolü başlat
+        setTimeout(checkTransaction, 3000); // İlk kontrol için 3 saniye bekle
+
+      }
     } catch (err) {
-      setTxStatus('error');
       console.error("Transaction hatası:", err);
+      setTxStatus('error');
     }
   }, [address, amount, orderId, tonConnectUi]);
 
