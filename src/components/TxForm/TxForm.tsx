@@ -129,6 +129,36 @@ export function TxForm() {
     }
   };
 
+  // txStatus değiştiğinde çalışacak useEffect
+  useEffect(() => {
+    const handleStatusChange = async () => {
+      if (txStatus === 'success') {
+        try {
+          // Transaction hash'i al (bunu bir state olarak tutmalıyız)
+          const { data: order } = await supabase
+            .from('orders')
+            .select('transaction_hash')
+            .eq('id', orderId)
+            .single();
+
+          if (order?.transaction_hash) {
+            await updateOrderStatus(order.transaction_hash);
+            
+            // Başarılı işlem sonrası Telegram WebApp'i kapat
+            if (window.Telegram?.WebApp) {
+              window.Telegram.WebApp.close();
+            }
+          }
+        } catch (error) {
+          console.error('Error updating order:', error);
+          setTxStatus('error');
+        }
+      }
+    };
+
+    handleStatusChange();
+  }, [txStatus, orderId]);
+
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
@@ -147,60 +177,45 @@ export function TxForm() {
       if (result) {
         const transactionHash = result.boc;
         let attempts = 0;
-        const maxAttempts = 20; // maksimum 20 deneme (toplam 60 saniye)
+        const maxAttempts = 20;
         
-        // setInterval kullanarak sürekli kontrol
         const intervalId = setInterval(async () => {
           try {
             attempts++;
-            console.log(`Checking transaction attempt ${attempts}`); // Debug için
+            console.log(`Checking transaction attempt ${attempts}`);
 
-            // Blockchain'den transaction durumunu kontrol et
-            try {
-              const response = await fetch(`https://tonapi.io/v2/blockchain/transactions/${transactionHash}`);
-              const txData = await response.json();
+            const response = await fetch(`https://tonapi.io/v2/blockchain/transactions/${transactionHash}`);
+            const txData = await response.json();
 
-              // Transaction başarılı ise
-              if (txData.status === 'successful') {
-                // Önce Supabase'i güncelle
-                await updateOrderStatus(transactionHash);
-                
-                // Sonra UI'ı güncelle
-                clearInterval(intervalId);
-                setTxStatus('success');
-                
-                // WebApp'i kapat
-                if (window.Telegram?.WebApp) {
-                  window.Telegram.WebApp.close();
-                }
-                return;
-              }
-
-              // Transaction başarısız ise
-              if (txData.status === 'failed') {
-                clearInterval(intervalId);
-                setTxStatus('error');
-                return;
-              }
-
-            } catch (apiError) {
-              console.error('Error checking transaction status:', apiError);
-            }
-
-            // Maximum deneme sayısına ulaşıldıysa
-            if (attempts >= maxAttempts) {
+            if (txData.status === 'successful') {
               clearInterval(intervalId);
-              setTxStatus('error');
-              console.error('Transaction timeout after max attempts');
+              // Önce transaction_hash'i kaydet
+              await supabase
+                .from('orders')
+                .update({ transaction_hash: transactionHash })
+                .eq('id', orderId);
+              
+              setTxStatus('success'); // Bu tetikleyecek useEffect'i
               return;
             }
 
-          } catch (checkError) {
-            console.error('Error in check interval:', checkError);
-          }
-        }, 3000); // Her 3 saniyede bir kontrol et
+            if (txData.status === 'failed') {
+              clearInterval(intervalId);
+              setTxStatus('error');
+              return;
+            }
 
-        // Component unmount olduğunda interval'i temizle
+            if (attempts >= maxAttempts) {
+              clearInterval(intervalId);
+              setTxStatus('error');
+              return;
+            }
+
+          } catch (error) {
+            console.error('Error checking transaction:', error);
+          }
+        }, 3000);
+
         return () => clearInterval(intervalId);
       }
 
