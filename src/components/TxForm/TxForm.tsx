@@ -1,7 +1,13 @@
-import React, {useCallback, useState} from 'react';
-import ReactJson, {InteractionProps} from 'react-json-view';
+import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
-import {SendTransactionRequest, useTonConnectUI, useTonWallet} from "@tonconnect/ui-react";
+import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
+
+interface PaymentData {
+  amount: string;
+  address: string;
+  orderId: string;
+  productName: string;
+}
 
 // In this example, we are using a predefined smart contract state initialization (`stateInit`)
 // to interact with an "EchoContract". This contract is designed to send the value back to the sender,
@@ -10,7 +16,6 @@ const defaultTx: SendTransactionRequest = {
   // The transaction is valid for 10 minutes from now, in unix epoch seconds.
   validUntil: Math.floor(Date.now() / 1000) + 600,
   messages: [
-
     {
       // The receiver's address.
       address: 'EQCKWpx7cNMpvmcN5ObM5lLUZHZRFKqYA4xmw9jOry0ZsF9M',
@@ -30,37 +35,89 @@ const defaultTx: SendTransactionRequest = {
       amount: toNano('0.01').toString(),
     }
     */
-
   ],
 };
 
 export function TxForm() {
-
-  const [tx, setTx] = useState(defaultTx);
-
+  const [amount, setAmount] = useState('');
+  const [address, setAddress] = useState('');
   const wallet = useTonWallet();
-
   const [tonConnectUi] = useTonConnectUI();
 
-  const onChange = useCallback((value: InteractionProps) => {
-    setTx(value.updated_src as SendTransactionRequest)
+  useEffect(() => {
+    // URL'den payment_data parametresini al
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentDataBase64 = urlParams.get('payment_data');
+
+    if (paymentDataBase64) {
+      try {
+        // Base64'ten decode et
+        const decodedData = atob(paymentDataBase64);
+        const paymentData: PaymentData = JSON.parse(decodedData);
+
+        // Amount'u TON'dan nanoTON'a çevir (1 TON = 1_000_000_000 nanoTON)
+        const amountInNano = (parseFloat(paymentData.amount) * 1_000_000_000).toString();
+        
+        setAmount(amountInNano);
+        setAddress(paymentData.address);
+      } catch (error) {
+        console.error('Error parsing payment data:', error);
+      }
+    }
   }, []);
+
+  const handleSend = useCallback(() => {
+    const tx: SendTransactionRequest = {
+      validUntil: Math.floor(Date.now() / 1000) + 600,
+      messages: [
+        {
+          address: address,
+          amount: amount,
+        }
+      ],
+    };
+    tonConnectUi.sendTransaction(tx);
+  }, [address, amount, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
-      <h3>Configure and send transaction</h3>
+      <div className="connect-button">
+        <TonConnectButton />
+      </div>
+      
+      <div className="form-content">
+        <div className="input-group">
+          <label>Address:</label>
+          <input 
+            type="text" 
+            value={address} 
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Enter TON address"
+            readOnly
+          />
+        </div>
+        
+        <div className="input-group">
+          <label>Amount (in nanoTON):</label>
+          <input 
+            type="text" 
+            value={amount} 
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Enter amount in nanoTON"
+            readOnly
+          />
+        </div>
 
-      <ReactJson theme="ocean" src={defaultTx} onEdit={onChange} onAdd={onChange} onDelete={onChange}/>
-
-      {wallet ? (
-        <button onClick={() => tonConnectUi.sendTransaction(tx)}>
-          Send transaction
-        </button>
-      ) : (
-        <button onClick={() => tonConnectUi.openModal()}>
-          Connect wallet to send the transaction
-        </button>
-      )}
+        {wallet ? (
+          <button onClick={handleSend} className="send-button">
+            Send Transaction
+          </button>
+        ) : (
+          <div className="connect-message">
+            Connect wallet to send transaction
+          </div>
+        )}
+      </div>
     </div>
   );
 }
