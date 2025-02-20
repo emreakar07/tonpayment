@@ -176,47 +176,29 @@ export function TxForm() {
       
       if (result) {
         const transactionHash = result.boc;
-        let attempts = 0;
-        const maxAttempts = 20;
         
-        const intervalId = setInterval(async () => {
-          try {
-            attempts++;
-            console.log(`Checking transaction attempt ${attempts}`);
+        try {
+          // Supabase'i güncelle
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({
+              status: 'completed',
+              transaction_hash: transactionHash,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', orderId);
 
-            const response = await fetch(`https://tonapi.io/v2/blockchain/transactions/${transactionHash}`);
-            const txData = await response.json();
+          if (updateError) throw updateError;
 
-            if (txData.status === 'successful') {
-              clearInterval(intervalId);
-              // Önce transaction_hash'i kaydet
-              await supabase
-                .from('orders')
-                .update({ transaction_hash: transactionHash })
-                .eq('id', orderId);
-              
-              setTxStatus('success'); // Bu tetikleyecek useEffect'i
-              return;
-            }
-
-            if (txData.status === 'failed') {
-              clearInterval(intervalId);
-              setTxStatus('error');
-              return;
-            }
-
-            if (attempts >= maxAttempts) {
-              clearInterval(intervalId);
-              setTxStatus('error');
-              return;
-            }
-
-          } catch (error) {
-            console.error('Error checking transaction:', error);
+          // UI'ı güncelle ve WebApp'i kapat
+          setTxStatus('success');
+          if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.close();
           }
-        }, 3000);
-
-        return () => clearInterval(intervalId);
+        } catch (error) {
+          console.error('Error updating order:', error);
+          setTxStatus('error');
+        }
       }
 
     } catch (err) {
