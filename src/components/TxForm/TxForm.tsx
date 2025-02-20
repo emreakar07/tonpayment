@@ -155,30 +155,39 @@ export function TxForm() {
             attempts++;
             console.log(`Checking transaction attempt ${attempts}`); // Debug için
 
-            const { data: txData, error: txError } = await supabase
-              .from('orders')
-              .select('status')
-              .eq('id', orderId)
-              .single();
+            // Blockchain'den transaction durumunu kontrol et
+            try {
+              const response = await fetch(`https://tonapi.io/v2/blockchain/transactions/${transactionHash}`);
+              const txData = await response.json();
 
-            if (txError) {
-              console.error('Error checking status:', txError);
-              return; // Hata durumunda interval devam etsin
-            }
-
-            console.log('Current order status:', txData?.status); // Debug için
-
-            if (txData?.status === 'completed') {
-              // İşlem zaten tamamlanmış
-              clearInterval(intervalId);
-              setTxStatus('success');
-              
-              if (window.Telegram?.WebApp) {
-                window.Telegram.WebApp.close();
+              // Transaction başarılı ise
+              if (txData.status === 'successful') {
+                // Önce Supabase'i güncelle
+                await updateOrderStatus(transactionHash);
+                
+                // Sonra UI'ı güncelle
+                clearInterval(intervalId);
+                setTxStatus('success');
+                
+                // WebApp'i kapat
+                if (window.Telegram?.WebApp) {
+                  window.Telegram.WebApp.close();
+                }
+                return;
               }
-              return;
+
+              // Transaction başarısız ise
+              if (txData.status === 'failed') {
+                clearInterval(intervalId);
+                setTxStatus('error');
+                return;
+              }
+
+            } catch (apiError) {
+              console.error('Error checking transaction status:', apiError);
             }
 
+            // Maximum deneme sayısına ulaşıldıysa
             if (attempts >= maxAttempts) {
               clearInterval(intervalId);
               setTxStatus('error');
@@ -186,25 +195,8 @@ export function TxForm() {
               return;
             }
 
-            // Status hala pending ise güncellemeyi dene
-            if (txData?.status === 'pending') {
-              try {
-                await updateOrderStatus(transactionHash);
-                clearInterval(intervalId);
-                setTxStatus('success');
-                
-                if (window.Telegram?.WebApp) {
-                  window.Telegram.WebApp.close();
-                }
-              } catch (updateError) {
-                console.error('Error updating order:', updateError);
-                // Güncelleme hatası durumunda interval devam etsin
-              }
-            }
-
           } catch (checkError) {
             console.error('Error in check interval:', checkError);
-            // Genel hata durumunda interval devam etsin
           }
         }, 3000); // Her 3 saniyede bir kontrol et
 
