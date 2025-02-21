@@ -108,40 +108,26 @@ export function TxForm() {
       // Transaction'ı gönder
       const result = await tonConnectUi.sendTransaction(tx);
       
-      if (result) {
-        const transactionHash = result.boc;
-        
-        try {
-          // Supabase'i güncelle
-          const { error: updateError } = await supabase
-            .from('orders')
-            .update({
-              status: 'completed',
-              transaction_hash: transactionHash,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', orderId);
+      // Eğer buraya kadar geldiyse transaction başarılı olmuştur
+      if (result?.boc) {
+        // Transaction başarılı, Supabase'i güncelle
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({
+            status: 'completed',
+            transaction_hash: result.boc,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', orderId);
 
-          if (updateError) {
-            console.error('Supabase update error:', updateError);
-            setTxStatus('error');
-            return;
-          }
-
-          // Başarılı durumda
-          setTxStatus('success');
-          
-          // 1 saniye bekle ve sonra WebApp'i kapat
-          setTimeout(() => {
-            if (window.Telegram?.WebApp) {
-              window.Telegram.WebApp.close();
-            }
-          }, 1000);
-          
-        } catch (error) {
-          console.error('Error updating order:', error);
+        if (updateError) {
+          console.error('Supabase update error:', updateError);
           setTxStatus('error');
+          return;
         }
+
+        // Her şey başarılı
+        setTxStatus('success');
       }
 
     } catch (err) {
