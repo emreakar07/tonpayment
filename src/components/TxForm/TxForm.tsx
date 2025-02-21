@@ -69,11 +69,29 @@ export function TxForm() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
   const [paymentId, setPaymentId] = useState('');
-  const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [txStatus, setTxStatus] = useState<'init' | 'pending' | 'sending' | 'success' | 'error' | null>('init');
+  const [statusMessage, setStatusMessage] = useState<string>('Uygulama başlatılıyor...');
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
 
+  // İlk yükleme ve Supabase bağlantı kontrolü
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const { data, error } = await supabase.from('orders').select('count');
+        if (!error) {
+          setStatusMessage('Veritabanı bağlantısı başarılı');
+          setTxStatus('init');
+        }
+      } catch (err) {
+        setStatusMessage('Veritabanı bağlantısı başarısız');
+        setTxStatus('error');
+      }
+    };
+    checkConnection();
+  }, []);
+
+  // Payment data yükleme
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const paymentDataBase64 = urlParams.get('payment_data');
@@ -86,46 +104,18 @@ export function TxForm() {
         setAmount(amountInNano);
         setAddress(paymentData.address);
         setPaymentId(paymentData.payment_id);
+        setStatusMessage('Ödeme bilgileri yüklendi');
       } catch (error) {
-        console.error('Error parsing payment data:', error);
+        setStatusMessage('Ödeme bilgileri yüklenirken hata oluştu');
+        setTxStatus('error');
       }
     }
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = tonConnectUi.onStatusChange(async (wallet) => {
-      if (wallet?.account?.address && wallet?.account?.chain === CHAIN.MAINNET) {
-        try {
-          const { error: updateError } = await supabase
-            .from('orders')
-            .update({
-              status: 'completed',
-              updated_at: new Date().toISOString()
-            })
-            .eq('status', 'pending');
-
-          if (updateError) {
-            setErrorMessage('Veritabanı güncellemesi başarısız oldu');
-            setTxStatus('error');
-            return;
-          }
-
-          setTxStatus('success');
-          setErrorMessage('');
-        } catch (dbError) {
-          setErrorMessage('Veritabanı işlemi başarısız oldu');
-          setTxStatus('error');
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, [tonConnectUi]);
-
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
-      setErrorMessage('');
+      setStatusMessage('İşlem hazırlanıyor...');
       
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -137,10 +127,42 @@ export function TxForm() {
         ],
       };
 
-      await tonConnectUi.sendTransaction(tx);
+      setTxStatus('sending');
+      setStatusMessage('İşlem cüzdana gönderiliyor...');
+      
+      // Transaction'ı gönder ve sonucunu bekle
+      const result = await tonConnectUi.sendTransaction(tx);
+
+      // TonConnect UI transaction sent bildirimini gösterdiğinde
+      if (result?.boc) {
+        setStatusMessage('İşlem blockchain\'e gönderildi, veritabanı güncelleniyor...');
+        
+        try {
+          // Supabase'i güncelle
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({
+              status: 'completed',
+              transaction_hash: result.boc,
+            })
+            .eq('status', 'pending');
+
+          if (updateError) {
+            setStatusMessage('Veritabanı güncellenirken hata oluştu');
+            setTxStatus('error');
+            return;
+          }
+
+          setStatusMessage('İşlem başarıyla tamamlandı! Transaction hash: ' + result.boc.slice(0, 10) + '...');
+          setTxStatus('success');
+        } catch (dbError) {
+          setStatusMessage('Veritabanı işlemi başarısız oldu');
+          setTxStatus('error');
+        }
+      }
 
     } catch (err) {
-      setErrorMessage('İşlem gönderilirken bir hata oluştu');
+      setStatusMessage('İşlem gönderilirken hata oluştu');
       setTxStatus('error');
     }
   }, [address, amount, tonConnectUi]);
@@ -187,9 +209,7 @@ export function TxForm() {
 
       {txStatus && (
         <div className={`transaction-status ${txStatus}`}>
-          {txStatus === 'pending' && 'İşlem gönderiliyor...'}
-          {txStatus === 'success' && 'İşlem başarıyla tamamlandı!'}
-          {txStatus === 'error' && (errorMessage || 'İşlem başarısız oldu!')}
+          {statusMessage}
         </div>
       )}
     </div>

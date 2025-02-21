@@ -69,9 +69,19 @@
   border-radius: 4px;
   text-align: center;
   
+  &.init {
+    background-color: #e2e3e5;
+    color: #383d41;
+  }
+
   &.pending {
     background-color: #fff3cd;
     color: #856404;
+  }
+  
+  &.sending {
+    background-color: #cce5ff;
+    color: #004085;
   }
   
   &.success {
