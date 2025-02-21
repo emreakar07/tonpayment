@@ -114,9 +114,11 @@ export function TxForm() {
 
   const handleSend = useCallback(async () => {
     try {
+      // İşlem başlangıcı
       setTxStatus('pending');
-      setStatusMessage('İşlem hazırlanıyor...');
-      
+      setStatusMessage('İşlem başlatılıyor...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
         messages: [
@@ -127,53 +129,58 @@ export function TxForm() {
         ],
       };
 
-      // Biraz bekleyelim
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      setTxStatus('sending');
-      setStatusMessage('İşlem cüzdana gönderiliyor...');
+      // Cüzdana gönderme
+      setStatusMessage('Cüzdan onayı bekleniyor...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Transaction'ı gönder ve sonucunu bekle
-      const result = await tonConnectUi.sendTransaction(tx);
-
-      // TonConnect UI transaction sent bildirimini gösterdiğinde
-      if (result?.boc) {
-        // Biraz daha bekleyelim
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      try {
+        const result = await tonConnectUi.sendTransaction(tx);
         
-        setStatusMessage('İşlem blockchain\'e gönderildi, veritabanı güncelleniyor...');
-        
-        try {
-          // Supabase'i güncelle
-          const { error: updateError } = await supabase
-            .from('orders')
-            .update({
-              status: 'completed',
-              transaction_hash: result.boc,
-            })
-            .eq('status', 'pending');
-
-          if (updateError) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setStatusMessage('Veritabanı güncellenirken hata oluştu');
-            setTxStatus('error');
-            return;
-          }
-
-          // Son mesaj için biraz bekleyelim
+        // Transaction başarılı olduysa
+        if (result?.boc) {
+          setStatusMessage('Transaction başarıyla gönderildi!');
           await new Promise(resolve => setTimeout(resolve, 1500));
-          setStatusMessage('İşlem başarıyla tamamlandı! Transaction hash: ' + result.boc.slice(0, 10) + '...');
-          setTxStatus('success');
-        } catch (dbError) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          setStatusMessage('Veritabanı işlemi başarısız oldu');
-          setTxStatus('error');
+          
+          setStatusMessage('Veritabanı güncelleniyor...');
+          try {
+            const { error: updateError } = await supabase
+              .from('orders')
+              .update({
+                status: 'completed',
+                transaction_hash: result.boc,
+              })
+              .eq('status', 'pending');
+
+            if (updateError) {
+              throw new Error('Veritabanı güncellenemedi');
+            }
+
+            setStatusMessage('✅ İşlem tamamlandı! Hash: ' + result.boc.slice(0, 8) + '...');
+            setTxStatus('success');
+            
+            // İşlem başarılı olduktan 3 saniye sonra WebApp'i kapatabiliriz
+            setTimeout(() => {
+              window.Telegram?.WebApp.close();
+            }, 3000);
+
+          } catch (dbError) {
+            throw new Error('Veritabanı güncellenirken hata oluştu');
+          }
+        } else {
+          throw new Error('Transaction hash alınamadı');
         }
+      } catch (txError: any) {
+        // Kullanıcı işlemi reddettiyse
+        if (txError.message?.includes('User rejected')) {
+          setStatusMessage('❌ İşlem kullanıcı tarafından reddedildi');
+        } else {
+          setStatusMessage('❌ Transaction gönderilemedi: ' + txError.message);
+        }
+        setTxStatus('error');
       }
 
-    } catch (err) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setStatusMessage('İşlem gönderilirken hata oluştu');
+    } catch (err: any) {
+      setStatusMessage('❌ ' + (err.message || 'Beklenmeyen bir hata oluştu'));
       setTxStatus('error');
     }
   }, [address, amount, tonConnectUi]);
