@@ -23,7 +23,7 @@ const supabase = createClient(
 interface PaymentData {
   amount: string;
   address: string;
-  orderId: string;
+  payment_id: string;
   productName: string;
 }
 
@@ -68,7 +68,7 @@ const defaultTx: SendTransactionRequest = {
 export function TxForm() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
-  const [orderId, setOrderId] = useState('');
+  const [paymentId, setPaymentId] = useState('');
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
@@ -84,7 +84,7 @@ export function TxForm() {
         const amountInNano = (parseFloat(paymentData.amount) * 1_000_000_000).toString();
         setAmount(amountInNano);
         setAddress(paymentData.address);
-        setOrderId(paymentData.orderId);
+        setPaymentId(paymentData.payment_id);
       } catch (error) {
         console.error('Error parsing payment data:', error);
       }
@@ -105,12 +105,38 @@ export function TxForm() {
         ],
       };
       
-      // Transaction'ı gönder
+      // Önce transaction'ı gönder ve tamamlanmasını bekle
       const result = await tonConnectUi.sendTransaction(tx);
       
-      // Eğer buraya kadar geldiyse transaction başarılı olmuştur
+      // Transaction başarılı olduktan sonra Supabase'i güncelle
       if (result?.boc) {
-        // Transaction başarılı, Supabase'i güncelle
+        console.log('Transaction successful, checking payment...', {
+          paymentId,
+          transactionHash: result.boc
+        });
+
+        // Önce payment'ı kontrol et
+        const { data: payment, error: fetchError } = await supabase
+          .from('orders')
+          .select('amount_ton')
+          .eq('payment_id', paymentId)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching payment:', fetchError);
+          setTxStatus('error');
+          return;
+        }
+
+        // Tutarları karşılaştır (nanoTON'dan TON'a çevirip)
+        const paidAmount = Number(amount) / 1_000_000_000;
+        if (paidAmount !== Number(payment.amount_ton)) {
+          console.error('Amount mismatch:', { paid: paidAmount, expected: payment.amount_ton });
+          setTxStatus('error');
+          return;
+        }
+
+        // Tutar doğruysa güncelle
         const { error: updateError } = await supabase
           .from('orders')
           .update({
@@ -118,7 +144,7 @@ export function TxForm() {
             transaction_hash: result.boc,
             updated_at: new Date().toISOString()
           })
-          .eq('id', orderId);
+          .eq('payment_id', paymentId);
 
         if (updateError) {
           console.error('Supabase update error:', updateError);
@@ -126,7 +152,7 @@ export function TxForm() {
           return;
         }
 
-        // Her şey başarılı
+        console.log('Supabase update successful');
         setTxStatus('success');
       }
 
@@ -134,7 +160,7 @@ export function TxForm() {
       console.error("Transaction hatası:", err);
       setTxStatus('error');
     }
-  }, [address, amount, orderId, tonConnectUi]);
+  }, [address, amount, paymentId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
