@@ -10,18 +10,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: true,
-        },
-      },
-      rollupOptions: {
-        external: [
-          // Server tarafı modülleri dışarıda bırak
-          '/src/server/**/*'
-        ]
-      }
+      minify: 'terser'
     },
     base: './',
     server: {
