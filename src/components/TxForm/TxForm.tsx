@@ -10,6 +10,7 @@ declare global {
     Telegram?: {
       WebApp: {
         close: () => void;
+        showPopup: (options: { title: string; message: string; buttons: { type: string }[] }) => void;
       };
     };
   }
@@ -90,10 +91,44 @@ export function TxForm() {
     }
   }, []);
 
+  useEffect(() => {
+    // Transaction status değişikliklerini dinle
+    const unsubscribe = tonConnectUi.onStatusChange(async (wallet) => {
+      if (wallet?.account?.address && wallet?.account?.chain === CHAIN.MAINNET) {
+        // Transaction sent bildirimi geldiğinde
+        try {
+          // Supabase'i güncelle
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({
+              status: 'completed',
+              updated_at: new Date().toISOString()
+            })
+            .eq('status', 'pending');
+
+          if (updateError) {
+            console.error('Supabase update error:', updateError);
+            setTxStatus('error');
+            return;
+          }
+
+          setTxStatus('success');
+        } catch (dbError) {
+          console.error('Database operation failed:', dbError);
+          setTxStatus('error');
+        }
+      }
+    });
+
+    // Cleanup
+    return () => {
+      unsubscribe();
+    };
+  }, [tonConnectUi]);
+
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
-      console.log('🚀 Starting transaction process...');
       
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -104,60 +139,13 @@ export function TxForm() {
           }
         ],
       };
-      
-      console.log('📝 Transaction parameters:', {
-        address,
-        amount,
-        validUntil: tx.validUntil
-      });
 
-      // Transaction'ı gönder
-      console.log('📤 Sending transaction...');
-      const result = await tonConnectUi.sendTransaction(tx);
-      console.log('📥 Transaction response:', result);
-
-      // Eğer transaction başarıyla gönderildiyse
-      if (result?.boc) {
-        console.log('✅ Transaction successful, hash:', result.boc);
-        
-        try {
-          console.log('💾 Updating Supabase orders...');
-          // Direkt orders tablosunu güncelle
-          const { data, error: updateError } = await supabase
-            .from('orders')
-            .update({
-              status: 'completed',
-              transaction_hash: result.boc,
-              updated_at: new Date().toISOString()
-            })
-            .eq('status', 'pending')
-            .select();
-
-          console.log('📊 Supabase update result:', {
-            data,
-            error: updateError,
-            updatedAt: new Date().toISOString()
-          });
-
-          if (updateError) {
-            console.error('❌ Supabase update error:', updateError);
-            setTxStatus('error');
-            return;
-          }
-
-          console.log('✨ All pending orders updated successfully');
-          setTxStatus('success');
-        } catch (dbError) {
-          console.error('💥 Database operation failed:', dbError);
-          setTxStatus('error');
-        }
-      } else {
-        console.error('❌ Transaction failed - no hash returned');
-        setTxStatus('error');
-      }
+      // Sadece transaction'ı gönder
+      await tonConnectUi.sendTransaction(tx);
+      // Supabase güncellemesi artık status change event'inde yapılacak
 
     } catch (err) {
-      console.error("💥 Transaction process failed:", err);
+      console.error("Transaction process failed:", err);
       setTxStatus('error');
     }
   }, [address, amount, tonConnectUi]);
