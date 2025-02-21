@@ -70,6 +70,7 @@ export function TxForm() {
   const [address, setAddress] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
 
@@ -92,12 +93,9 @@ export function TxForm() {
   }, []);
 
   useEffect(() => {
-    // Transaction status değişikliklerini dinle
     const unsubscribe = tonConnectUi.onStatusChange(async (wallet) => {
       if (wallet?.account?.address && wallet?.account?.chain === CHAIN.MAINNET) {
-        // Transaction sent bildirimi geldiğinde
         try {
-          // Supabase'i güncelle
           const { error: updateError } = await supabase
             .from('orders')
             .update({
@@ -107,28 +105,27 @@ export function TxForm() {
             .eq('status', 'pending');
 
           if (updateError) {
-            console.error('Supabase update error:', updateError);
+            setErrorMessage('Veritabanı güncellemesi başarısız oldu');
             setTxStatus('error');
             return;
           }
 
           setTxStatus('success');
+          setErrorMessage('');
         } catch (dbError) {
-          console.error('Database operation failed:', dbError);
+          setErrorMessage('Veritabanı işlemi başarısız oldu');
           setTxStatus('error');
         }
       }
     });
 
-    // Cleanup
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [tonConnectUi]);
 
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
+      setErrorMessage('');
       
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -140,12 +137,10 @@ export function TxForm() {
         ],
       };
 
-      // Sadece transaction'ı gönder
       await tonConnectUi.sendTransaction(tx);
-      // Supabase güncellemesi artık status change event'inde yapılacak
 
     } catch (err) {
-      console.error("Transaction process failed:", err);
+      setErrorMessage('İşlem gönderilirken bir hata oluştu');
       setTxStatus('error');
     }
   }, [address, amount, tonConnectUi]);
@@ -194,7 +189,7 @@ export function TxForm() {
         <div className={`transaction-status ${txStatus}`}>
           {txStatus === 'pending' && 'İşlem gönderiliyor...'}
           {txStatus === 'success' && 'İşlem başarıyla tamamlandı!'}
-          {txStatus === 'error' && 'İşlem başarısız oldu!'}
+          {txStatus === 'error' && (errorMessage || 'İşlem başarısız oldu!')}
         </div>
       )}
     </div>
