@@ -8,7 +8,23 @@ import App from './App'
 import './index.scss'
 import {runSingleInstance} from "./utils/run-signle-instance";
 
-eruda.init();
+// Eruda'yı başlat ve görünür yap
+const el = document.createElement('div');
+document.body.appendChild(el);
+eruda.init({
+  container: el,
+  tool: ['console', 'elements', 'network', 'resources', 'info'],
+  useShadowDom: true,
+  autoScale: true,
+  defaults: {
+    displaySize: 50,
+    transparency: 0.9,
+    theme: 'Dark'
+  }
+});
+
+// Eruda'yı her zaman görünür yap
+eruda.show();
 
 async function enableMocking() {
   const host = document.baseURI.replace(/\/$/, '');

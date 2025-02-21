@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { CHAIN, SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { createClient } from '@supabase/supabase-js';
+import eruda from "eruda";
 
 // Telegram WebApp için tip tanımlaması
 declare global {
@@ -92,7 +93,7 @@ export function TxForm() {
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
-      console.log('Starting transaction process...');
+      console.log('🚀 Starting transaction process...');
       
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -104,23 +105,23 @@ export function TxForm() {
         ],
       };
       
-      console.log('Transaction parameters:', {
+      console.log('📝 Transaction parameters:', {
         address,
         amount,
         validUntil: tx.validUntil
       });
 
       // Transaction'ı gönder
-      console.log('Sending transaction...');
+      console.log('📤 Sending transaction...');
       const result = await tonConnectUi.sendTransaction(tx);
-      console.log('Transaction response:', result);
+      console.log('📥 Transaction response:', result);
 
       // Eğer transaction başarıyla gönderildiyse
       if (result?.boc) {
-        console.log('Transaction successful, hash:', result.boc);
+        console.log('✅ Transaction successful, hash:', result.boc);
         
         try {
-          console.log('Updating Supabase orders...');
+          console.log('💾 Updating Supabase orders...');
           // Direkt orders tablosunu güncelle
           const { data, error: updateError } = await supabase
             .from('orders')
@@ -132,31 +133,31 @@ export function TxForm() {
             .eq('status', 'pending')
             .select();
 
-          console.log('Supabase update result:', {
+          console.log('📊 Supabase update result:', {
             data,
             error: updateError,
             updatedAt: new Date().toISOString()
           });
 
           if (updateError) {
-            console.error('Supabase update error:', updateError);
+            console.error('❌ Supabase update error:', updateError);
             setTxStatus('error');
             return;
           }
 
-          console.log('All pending orders updated successfully');
+          console.log('✨ All pending orders updated successfully');
           setTxStatus('success');
         } catch (dbError) {
-          console.error('Database operation failed:', dbError);
+          console.error('💥 Database operation failed:', dbError);
           setTxStatus('error');
         }
       } else {
-        console.error('Transaction failed - no hash returned');
+        console.error('❌ Transaction failed - no hash returned');
         setTxStatus('error');
       }
 
     } catch (err) {
-      console.error("Transaction process failed:", err);
+      console.error("💥 Transaction process failed:", err);
       setTxStatus('error');
     }
   }, [address, amount, tonConnectUi]);
