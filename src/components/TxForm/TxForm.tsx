@@ -127,6 +127,9 @@ export function TxForm() {
         ],
       };
 
+      // Biraz bekleyelim
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       setTxStatus('sending');
       setStatusMessage('İşlem cüzdana gönderiliyor...');
       
@@ -135,6 +138,9 @@ export function TxForm() {
 
       // TonConnect UI transaction sent bildirimini gösterdiğinde
       if (result?.boc) {
+        // Biraz daha bekleyelim
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         setStatusMessage('İşlem blockchain\'e gönderildi, veritabanı güncelleniyor...');
         
         try {
@@ -148,20 +154,25 @@ export function TxForm() {
             .eq('status', 'pending');
 
           if (updateError) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
             setStatusMessage('Veritabanı güncellenirken hata oluştu');
             setTxStatus('error');
             return;
           }
 
+          // Son mesaj için biraz bekleyelim
+          await new Promise(resolve => setTimeout(resolve, 1500));
           setStatusMessage('İşlem başarıyla tamamlandı! Transaction hash: ' + result.boc.slice(0, 10) + '...');
           setTxStatus('success');
         } catch (dbError) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
           setStatusMessage('Veritabanı işlemi başarısız oldu');
           setTxStatus('error');
         }
       }
 
     } catch (err) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setStatusMessage('İşlem gönderilirken hata oluştu');
       setTxStatus('error');
     }
