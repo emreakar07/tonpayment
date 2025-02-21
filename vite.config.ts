@@ -16,6 +16,12 @@ export default defineConfig(({ mode }) => {
           drop_console: true,
         },
       },
+      rollupOptions: {
+        external: [
+          // Server tarafı modülleri dışarıda bırak
+          '/src/server/**/*'
+        ]
+      }
     },
     base: './',
     server: {
