@@ -1,9 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
 // https://vitejs.dev/config/
-
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
@@ -11,21 +9,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
-      minify: 'terser',
-      rollupOptions: {
-        external: [
-          // Server kodlarını dışarıda bırak
-          /^src\/server\/.*/
-        ],
-        output: {
-          manualChunks(id) {
-            // server kodlarını ayrı bir chunk'a al
-            if (id.includes('src/server/')) {
-              return 'server';
-            }
-          }
-        }
-      }
+      minify: 'terser'
     },
     base: './',
     server: {
@@ -40,11 +24,6 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'process.env': env
-    },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src')
-      }
     }
   }
 })
