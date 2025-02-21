@@ -28,12 +28,10 @@ interface PaymentData {
 }
 
 interface Order {
-  id: string;
-  amount: string;
+  payment_id: string;
+  amount_ton: string;
   status: 'pending' | 'completed' ;
   transaction_hash?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 // In this example, we are using a predefined smart contract state initialization (`stateInit`)
@@ -119,7 +117,7 @@ export function TxForm() {
         // Önce payment'ı kontrol et
         const { data: payment, error: fetchError } = await supabase
           .from('orders')
-          .select('*') // Tüm verileri çekelim debug için
+          .select('*')
           .eq('payment_id', paymentId)
           .single();
 
@@ -133,18 +131,21 @@ export function TxForm() {
         }
 
         // Tutarları karşılaştır (nanoTON'dan TON'a çevirip)
-        const paidAmount = Number(amount) / 1_000_000_000;
+        const paidAmount = (Number(amount) / 1_000_000_000).toFixed(9); // 9 decimal hassasiyet
+        const expectedAmount = Number(payment.amount_ton).toFixed(9); // Aynı formatta karşılaştırmak için
+
         console.log('Amount comparison:', {
           paid: paidAmount,
-          expected: payment.amount_ton,
-          rawAmount: amount
+          expected: expectedAmount,
+          rawAmount: amount,
+          rawExpected: payment.amount_ton
         });
 
-        if (paidAmount !== Number(payment.amount_ton)) {
+        if (paidAmount !== expectedAmount) {
           console.error('Amount mismatch:', { 
             paid: paidAmount, 
-            expected: payment.amount_ton,
-            difference: Math.abs(paidAmount - Number(payment.amount_ton))
+            expected: expectedAmount,
+            difference: Math.abs(Number(paidAmount) - Number(expectedAmount))
           });
           setTxStatus('error');
           return;
