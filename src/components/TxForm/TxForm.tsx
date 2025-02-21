@@ -112,15 +112,19 @@ export function TxForm() {
       if (result?.boc) {
         console.log('Transaction successful, checking payment...', {
           paymentId,
-          transactionHash: result.boc
+          transactionHash: result.boc,
+          amount: amount
         });
 
         // Önce payment'ı kontrol et
         const { data: payment, error: fetchError } = await supabase
           .from('orders')
-          .select('amount_ton')
+          .select('*') // Tüm verileri çekelim debug için
           .eq('payment_id', paymentId)
           .single();
+
+        console.log('Payment data from Supabase:', payment);
+        console.log('Fetch error:', fetchError);
 
         if (fetchError) {
           console.error('Error fetching payment:', fetchError);
@@ -130,8 +134,18 @@ export function TxForm() {
 
         // Tutarları karşılaştır (nanoTON'dan TON'a çevirip)
         const paidAmount = Number(amount) / 1_000_000_000;
+        console.log('Amount comparison:', {
+          paid: paidAmount,
+          expected: payment.amount_ton,
+          rawAmount: amount
+        });
+
         if (paidAmount !== Number(payment.amount_ton)) {
-          console.error('Amount mismatch:', { paid: paidAmount, expected: payment.amount_ton });
+          console.error('Amount mismatch:', { 
+            paid: paidAmount, 
+            expected: payment.amount_ton,
+            difference: Math.abs(paidAmount - Number(payment.amount_ton))
+          });
           setTxStatus('error');
           return;
         }
