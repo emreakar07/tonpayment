@@ -92,6 +92,7 @@ export function TxForm() {
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
+      console.log('Starting transaction process...');
       
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -103,79 +104,62 @@ export function TxForm() {
         ],
       };
       
-      // Önce transaction'ı gönder ve tamamlanmasını bekle
+      console.log('Transaction parameters:', {
+        address,
+        amount,
+        validUntil: tx.validUntil
+      });
+
+      // Transaction'ı gönder
+      console.log('Sending transaction...');
       const result = await tonConnectUi.sendTransaction(tx);
-      
-      // Transaction başarılı olduktan sonra Supabase'i güncelle
+      console.log('Transaction response:', result);
+
+      // Eğer transaction başarıyla gönderildiyse
       if (result?.boc) {
-        console.log('Transaction successful, checking payment...', {
-          paymentId,
-          transactionHash: result.boc,
-          amount: amount
-        });
+        console.log('Transaction successful, hash:', result.boc);
+        
+        try {
+          console.log('Updating Supabase orders...');
+          // Direkt orders tablosunu güncelle
+          const { data, error: updateError } = await supabase
+            .from('orders')
+            .update({
+              status: 'completed',
+              transaction_hash: result.boc,
+              updated_at: new Date().toISOString()
+            })
+            .eq('status', 'pending')
+            .select();
 
-        // Önce payment'ı kontrol et
-        const { data: payment, error: fetchError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('payment_id', paymentId)
-          .single();
-
-        console.log('Payment data from Supabase:', payment);
-        console.log('Fetch error:', fetchError);
-
-        if (fetchError) {
-          console.error('Error fetching payment:', fetchError);
-          setTxStatus('error');
-          return;
-        }
-
-        // Tutarları karşılaştır (nanoTON'dan TON'a çevirip)
-        const paidAmount = (Number(amount) / 1_000_000_000).toFixed(9); // 9 decimal hassasiyet
-        const expectedAmount = Number(payment.amount_ton).toFixed(9); // Aynı formatta karşılaştırmak için
-
-        console.log('Amount comparison:', {
-          paid: paidAmount,
-          expected: expectedAmount,
-          rawAmount: amount,
-          rawExpected: payment.amount_ton
-        });
-
-        if (paidAmount !== expectedAmount) {
-          console.error('Amount mismatch:', { 
-            paid: paidAmount, 
-            expected: expectedAmount,
-            difference: Math.abs(Number(paidAmount) - Number(expectedAmount))
+          console.log('Supabase update result:', {
+            data,
+            error: updateError,
+            updatedAt: new Date().toISOString()
           });
+
+          if (updateError) {
+            console.error('Supabase update error:', updateError);
+            setTxStatus('error');
+            return;
+          }
+
+          console.log('All pending orders updated successfully');
+          setTxStatus('success');
+        } catch (dbError) {
+          console.error('Database operation failed:', dbError);
           setTxStatus('error');
-          return;
         }
-
-        // Tutar doğruysa güncelle
-        const { error: updateError } = await supabase
-          .from('orders')
-          .update({
-            status: 'completed',
-            transaction_hash: result.boc,
-            updated_at: new Date().toISOString()
-          })
-          .eq('payment_id', paymentId);
-
-        if (updateError) {
-          console.error('Supabase update error:', updateError);
-          setTxStatus('error');
-          return;
-        }
-
-        console.log('Supabase update successful');
-        setTxStatus('success');
+      } else {
+        console.error('Transaction failed - no hash returned');
+        setTxStatus('error');
       }
 
     } catch (err) {
-      console.error("Transaction hatası:", err);
+      console.error("Transaction process failed:", err);
       setTxStatus('error');
     }
-  }, [address, amount, paymentId, tonConnectUi]);
+  }, [address, amount, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
