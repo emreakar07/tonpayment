@@ -30,7 +30,7 @@ interface PaymentData {
 interface Order {
   id: string;
   amount: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' ;
   transaction_hash?: string;
   created_at: string;
   updated_at: string;
