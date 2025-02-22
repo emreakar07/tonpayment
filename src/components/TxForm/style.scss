@@ -37,6 +37,12 @@
         border-color: #0098EA;
       }
     }
+
+    input[type="text"] {
+      &::placeholder {
+        color: #999;
+      }
+    }
   }
 
   .send-button {

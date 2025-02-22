@@ -1,6 +1,8 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { CHAIN, SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
+import { beginCell } from '@ton/core';
+import { Buffer } from 'buffer';
 
 // Telegram WebApp için tip tanımlaması
 declare global {
@@ -29,6 +31,7 @@ export function TxForm() {
   const [statusMessage, setStatusMessage] = useState<string>('Uygulama başlatılıyor...');
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
+  const [message, setMessage] = useState('');
 
   const savePaymentData = (paymentData: PaymentData, transactionBoc?: string) => {
     const storedPayments = localStorage.getItem('ton_payments') || '[]';
@@ -81,6 +84,14 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
+            payload: message ? 
+              beginCell()
+                .storeUint(0, 32) // op code 0 for text messages
+                .storeBuffer(Buffer.from(message, 'utf-8')) // string'i buffer olarak store et
+                .endCell()
+                .toBoc()
+                .toString('base64')
+              : undefined
           }
         ],
         network: CHAIN.MAINNET
@@ -129,7 +140,7 @@ export function TxForm() {
       setStatusMessage('❌ ' + (err.message || 'Beklenmeyen bir hata oluştu'));
       setTxStatus('error');
     }
-  }, [address, amount, paymentId, tonConnectUi]);
+  }, [address, amount, message, paymentId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
@@ -157,6 +168,16 @@ export function TxForm() {
             onChange={(e) => setAmount(e.target.value)}
             placeholder="Enter amount in nanoTON"
             readOnly
+          />
+        </div>
+
+        <div className="input-group">
+          <label>Message (optional):</label>
+          <input 
+            type="text" 
+            value={message} 
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Enter message (optional)"
           />
         </div>
 
