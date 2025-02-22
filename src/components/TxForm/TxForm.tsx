@@ -41,6 +41,7 @@ const defaultTx: SendTransactionRequest = {
 export function TxForm() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
+  const [orderId, setOrderId] = useState('');
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
 
@@ -60,6 +61,7 @@ export function TxForm() {
         
         setAmount(amountInNano);
         setAddress(paymentData.address);
+        setOrderId(paymentData.orderId);
       } catch (error) {
         console.error('Error parsing payment data:', error);
       }
@@ -73,11 +75,12 @@ export function TxForm() {
         {
           address: address,
           amount: amount,
+          payload: orderId
         }
       ],
     };
     tonConnectUi.sendTransaction(tx);
-  }, [address, amount, tonConnectUi]);
+  }, [address, amount, orderId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
@@ -104,6 +107,15 @@ export function TxForm() {
             value={amount} 
             onChange={(e) => setAmount(e.target.value)}
             placeholder="Enter amount in nanoTON"
+            readOnly
+          />
+        </div>
+
+        <div className="input-group">
+          <label>Payment ID:</label>
+          <input 
+            type="text" 
+            value={orderId} 
             readOnly
           />
         </div>
