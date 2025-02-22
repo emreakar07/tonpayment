@@ -6,7 +6,7 @@ import { beginCell } from '@ton/core';
 interface PaymentData {
   amount: string;
   address: string;
-  orderId: string;
+  payment_id: string;
   productName: string;
 }
 
@@ -42,27 +42,24 @@ const defaultTx: SendTransactionRequest = {
 export function TxForm() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
-  const [orderId, setOrderId] = useState('');
+  const [paymentId, setPaymentId] = useState('');
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
 
   useEffect(() => {
-    // URL'den payment_data parametresini al
     const urlParams = new URLSearchParams(window.location.search);
     const paymentDataBase64 = urlParams.get('payment_data');
 
     if (paymentDataBase64) {
       try {
-        // Base64'ten decode et
         const decodedData = atob(paymentDataBase64);
         const paymentData: PaymentData = JSON.parse(decodedData);
-
-        // Amount'u TON'dan nanoTON'a çevir (1 TON = 1_000_000_000 nanoTON)
+        
         const amountInNano = (parseFloat(paymentData.amount) * 1_000_000_000).toString();
         
         setAmount(amountInNano);
         setAddress(paymentData.address);
-        setOrderId(paymentData.orderId);
+        setPaymentId(paymentData.payment_id);
       } catch (error) {
         console.error('Error parsing payment data:', error);
       }
@@ -70,27 +67,18 @@ export function TxForm() {
   }, []);
 
   const handleSend = useCallback(() => {
-    // Comment formatında mesaj oluştur
-    const commentMessage = `payment_id:${orderId}`;
-    
-    // Mesajı Cell formatına çevir
-    const cell = beginCell()
-      .storeUint(0, 32) // op = 0 for comment message
-      .storeBuffer(Buffer.from(commentMessage))
-      .endCell();
-
     const tx: SendTransactionRequest = {
       validUntil: Math.floor(Date.now() / 1000) + 600,
       messages: [
         {
           address: address,
           amount: amount,
-          payload: cell.toBoc().toString('base64')
+          payload: paymentId
         }
       ],
     };
     tonConnectUi.sendTransaction(tx);
-  }, [address, amount, orderId, tonConnectUi]);
+  }, [address, amount, paymentId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
@@ -125,7 +113,7 @@ export function TxForm() {
           <label>Payment ID:</label>
           <input 
             type="text" 
-            value={orderId} 
+            value={paymentId} 
             readOnly
           />
         </div>
