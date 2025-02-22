@@ -43,6 +43,21 @@
         color: #999;
       }
     }
+
+    .value-display {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      color: #fff;
+      font-family: monospace;
+    }
+
+    .message-preview {
+      margin-top: 8px;
+      font-size: 0.9em;
+      color: #999;
+      font-style: italic;
+    }
   }
 
   .send-button {

@@ -31,7 +31,6 @@ export function TxForm() {
   const [statusMessage, setStatusMessage] = useState<string>('Uygulama başlatılıyor...');
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
-  const [message, setMessage] = useState('');
 
   const savePaymentData = (paymentData: PaymentData, transactionBoc?: string) => {
     const storedPayments = localStorage.getItem('ton_payments') || '[]';
@@ -84,14 +83,12 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
-            payload: message ? 
-              beginCell()
-                .storeUint(0, 32) // op code 0 for text messages
-                .storeBuffer(Buffer.from(message, 'utf-8')) // string'i buffer olarak store et
-                .endCell()
-                .toBoc()
-                .toString('base64')
-              : undefined
+            payload: beginCell()
+              .storeUint(0, 32) // op code 0 for text messages
+              .storeBuffer(Buffer.from(paymentId, 'utf-8')) // payment_id'yi mesaj olarak gönder
+              .endCell()
+              .toBoc()
+              .toString('base64')
           }
         ],
         network: CHAIN.MAINNET
@@ -140,7 +137,7 @@ export function TxForm() {
       setStatusMessage('❌ ' + (err.message || 'Beklenmeyen bir hata oluştu'));
       setTxStatus('error');
     }
-  }, [address, amount, message, paymentId, tonConnectUi]);
+  }, [address, amount, paymentId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
@@ -151,34 +148,22 @@ export function TxForm() {
       <div className="form-content">
         <div className="input-group">
           <label>Address:</label>
-          <input 
-            type="text" 
-            value={address} 
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Enter TON address"
-            readOnly
-          />
+          <div className="value-display">{address}</div>
         </div>
         
         <div className="input-group">
-          <label>Amount (in nanoTON):</label>
-          <input 
-            type="text" 
-            value={amount} 
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Enter amount in nanoTON"
-            readOnly
-          />
+          <label>Amount:</label>
+          <div className="value-display">
+            {(Number(amount) / 1_000_000_000).toFixed(2)} TON
+          </div>
         </div>
 
         <div className="input-group">
-          <label>Message (optional):</label>
-          <input 
-            type="text" 
-            value={message} 
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Enter message (optional)"
-          />
+          <label>Payment ID:</label>
+          <div className="value-display">{paymentId}</div>
+          <div className="message-preview">
+            This payment ID will be sent as message
+          </div>
         </div>
 
         {wallet ? (
