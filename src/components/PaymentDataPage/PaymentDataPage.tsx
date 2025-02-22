@@ -25,16 +25,18 @@ export function PaymentDataPage() {
     }
   }, []);
 
-  return (
-    <div className="payment-data-page">
-      <h1>Payment Records</h1>
-      <div className="records-container">
-        {payments.map((record, index) => (
-          <div key={index} className="payment-record">
-            <pre>{JSON.stringify(record, null, 2)}</pre>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // JSON formatında veriyi döndür
+  useEffect(() => {
+    // Content-Type'ı application/json yap
+    document.querySelector('head')?.insertAdjacentHTML(
+      'beforeend',
+      '<meta http-equiv="Content-Type" content="application/json; charset=utf-8">'
+    );
+
+    // Sayfayı JSON olarak render et
+    document.body.textContent = JSON.stringify(payments, null, 2);
+  }, [payments]);
+
+  // Artık UI render etmemize gerek yok
+  return null;
 } 
