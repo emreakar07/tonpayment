@@ -1,10 +1,17 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import React, { useEffect } from 'react';
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  // CORS header'larını ekle
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
+export function PaymentDataEndpoint() {
+  useEffect(() => {
+    // Content type'ı ayarla
+    document.querySelector('head')?.insertAdjacentHTML(
+      'beforeend',
+      '<meta http-equiv="Content-Type" content="application/json; charset=utf-8">'
+    );
 
-  const payments = localStorage.getItem('ton_payments') || '[]';
-  res.status(200).json(JSON.parse(payments));
+    // Sayfayı JSON olarak render et
+    const payments = localStorage.getItem('ton_payments') || '[]';
+    document.body.textContent = payments;
+  }, []);
+
+  return null;
 } 

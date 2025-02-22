@@ -1,7 +1,7 @@
 import './App.scss'
 import {THEME, TonConnectUIProvider} from "@tonconnect/ui-react";
 import {TxForm} from "./components/TxForm/TxForm";
-import { PaymentDataPage } from "./components/PaymentDataPage/PaymentDataPage";
+import { PaymentDataEndpoint } from "./api/payment-data";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 function App() {
@@ -242,7 +242,7 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<TxForm />} />
-          <Route path="/payment-data" element={<PaymentDataPage />} />
+          <Route path="/payment-data" element={<PaymentDataEndpoint />} />
         </Routes>
       </TonConnectUIProvider>
     </BrowserRouter>
