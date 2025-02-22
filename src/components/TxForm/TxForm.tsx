@@ -77,8 +77,13 @@ export function TxForm() {
       setTxStatus('pending');
       setStatusMessage('İşlem başlatılıyor...');
 
-      // Comment'i base64'e çevir
-      const messageBase64 = btoa(`ton-payment-id:${paymentId}`);
+      // Text mesajı için özel format:
+      // 0x00000000 (32-bit op code) + message
+      const message = `ton-payment-id:${paymentId}`;
+      const textCell = beginCell()
+        .storeUint(0, 32) // text mesajları için op = 0
+        .storeStringTail(message)
+        .endCell();
 
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -86,7 +91,8 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
-            payload: messageBase64 // Direkt base64 string olarak gönder
+            stateInit: undefined,
+            payload: textCell.toBoc().toString('base64')
           }
         ],
         network: CHAIN.MAINNET
@@ -160,7 +166,7 @@ export function TxForm() {
           <label>Payment ID:</label>
           <div className="value-display">{paymentId}</div>
           <div className="message-preview">
-            This payment ID will be sent as message
+            Message to be sent: <span className="message-content">ton-payment-id:{paymentId}</span>
           </div>
         </div>
 
