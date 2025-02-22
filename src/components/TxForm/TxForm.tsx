@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
+import { beginCell } from '@ton/core';
 
 interface PaymentData {
   amount: string;
@@ -69,13 +70,22 @@ export function TxForm() {
   }, []);
 
   const handleSend = useCallback(() => {
+    // Comment formatında mesaj oluştur
+    const commentMessage = `payment_id:${orderId}`;
+    
+    // Mesajı Cell formatına çevir
+    const cell = beginCell()
+      .storeUint(0, 32) // op = 0 for comment message
+      .storeBuffer(Buffer.from(commentMessage))
+      .endCell();
+
     const tx: SendTransactionRequest = {
       validUntil: Math.floor(Date.now() / 1000) + 600,
       messages: [
         {
           address: address,
           amount: amount,
-          payload: orderId
+          payload: cell.toBoc().toString('base64')
         }
       ],
     };
