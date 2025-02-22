@@ -67,13 +67,19 @@ export function TxForm() {
   }, []);
 
   const handleSend = useCallback(() => {
+    // Mesajı TON formatında encode et
+    const message = beginCell()
+      .storeUint(0, 32) // op = 0 (text mesajı olduğunu belirtir)
+      .storeBuffer(Buffer.from(paymentId, 'utf-8'))
+      .endCell();
+
     const tx: SendTransactionRequest = {
       validUntil: Math.floor(Date.now() / 1000) + 600,
       messages: [
         {
           address: address,
           amount: amount,
-          payload: paymentId
+          payload: message.toBoc().toString('base64') // Base64 encoded mesaj
         }
       ],
     };
