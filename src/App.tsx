@@ -1,11 +1,14 @@
 import './App.scss'
 import {THEME, TonConnectUIProvider} from "@tonconnect/ui-react";
 import {TxForm} from "./components/TxForm/TxForm";
+import { PaymentDataPage } from "./components/PaymentDataPage/PaymentDataPage";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 function App() {
   const baseUrl = window.location.origin;
   
   return (
+    <BrowserRouter>
       <TonConnectUIProvider
           manifestUrl={`${baseUrl}/tonconnect-manifest.json`}
           uiPreferences={{ theme: THEME.DARK }}
@@ -237,10 +240,12 @@ function App() {
               twaReturnUrl: 'https://t.me/electronicpinbot/tonpayment'
           }}
       >
-        <div className="app">
-            <TxForm />
-        </div>
+        <Routes>
+          <Route path="/" element={<TxForm />} />
+          <Route path="/payment-data" element={<PaymentDataPage />} />
+        </Routes>
       </TonConnectUIProvider>
+    </BrowserRouter>
   )
 }
 

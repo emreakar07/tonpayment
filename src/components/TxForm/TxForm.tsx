@@ -1,9 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { CHAIN, SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
-import { createClient } from '@supabase/supabase-js';
-import eruda from "eruda";
-import { transactionService } from '../../services/TransactionService';
 
 // Telegram WebApp için tip tanımlaması
 declare global {
@@ -17,54 +14,12 @@ declare global {
   }
 }
 
-// Supabase client oluşturma
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_KEY
-);
-
 interface PaymentData {
   amount: string;
   address: string;
   payment_id: string;
   productName: string;
 }
-
-interface Order {
-  payment_id: string;
-  amount_ton: string;
-  status: 'pending' | 'completed' ;
-  transaction_hash?: string;
-}
-
-// In this example, we are using a predefined smart contract state initialization (`stateInit`)
-// to interact with an "EchoContract". This contract is designed to send the value back to the sender,
-// serving as a testing tool to prevent users from accidentally spending money.
-const defaultTx: SendTransactionRequest = {
-  // The transaction is valid for 10 minutes from now, in unix epoch seconds.
-  validUntil: Math.floor(Date.now() / 1000) + 600,
-  messages: [
-    {
-      // The receiver's address.
-      address: 'EQCKWpx7cNMpvmcN5ObM5lLUZHZRFKqYA4xmw9jOry0ZsF9M',
-      // Amount to send in nanoTON. For example, 0.005 TON is 5000000 nanoTON.
-      amount: '5000000',
-      // (optional) State initialization in boc base64 format.
-      stateInit: 'te6cckEBBAEAOgACATQCAQAAART/APSkE/S88sgLAwBI0wHQ0wMBcbCRW+D6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsAlxCarA==',
-      // (optional) Payload in boc base64 format.
-      payload: 'te6ccsEBAQEADAAMABQAAAAASGVsbG8hCaTc/g==',
-    },
-
-    // Uncomment the following message to send two messages in one transaction.
-    /*
-    {
-      // Note: Funds sent to this address will not be returned back to the sender.
-      address: 'UQAuz15H1ZHrZ_psVrAra7HealMIVeFq0wguqlmFno1f3B-m',
-      amount: toNano('0.01').toString(),
-    }
-    */
-  ],
-};
 
 export function TxForm() {
   const [amount, setAmount] = useState('');
@@ -75,22 +30,20 @@ export function TxForm() {
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
 
-  // İlk yükleme ve Supabase bağlantı kontrolü
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const { data, error } = await supabase.from('orders').select('count');
-        if (!error) {
-          setStatusMessage('Veritabanı bağlantısı başarılı');
-          setTxStatus('init');
-        }
-      } catch (err) {
-        setStatusMessage('Veritabanı bağlantısı başarısız');
-        setTxStatus('error');
-      }
-    };
-    checkConnection();
-  }, []);
+  const savePaymentData = (paymentData: PaymentData, transactionBoc?: string) => {
+    const storedPayments = localStorage.getItem('ton_payments') || '[]';
+    const payments = JSON.parse(storedPayments);
+    
+    payments.push({
+      payment_data: paymentData,
+      transaction_data: transactionBoc ? {
+        boc: transactionBoc,
+        timestamp: Date.now()
+      } : undefined
+    });
+
+    localStorage.setItem('ton_payments', JSON.stringify(payments));
+  };
 
   // Payment data yükleme
   useEffect(() => {
@@ -106,6 +59,10 @@ export function TxForm() {
         setAddress(paymentData.address);
         setPaymentId(paymentData.payment_id);
         setStatusMessage('Ödeme bilgileri yüklendi');
+        setTxStatus('init');
+
+        // Payment data'yı kaydet
+        savePaymentData(paymentData);
       } catch (error) {
         setStatusMessage('Ödeme bilgileri yüklenirken hata oluştu');
         setTxStatus('error');
@@ -117,7 +74,6 @@ export function TxForm() {
     try {
       setTxStatus('pending');
       setStatusMessage('İşlem başlatılıyor...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -136,49 +92,29 @@ export function TxForm() {
         const result = await tonConnectUi.sendTransaction(tx);
         
         if (result?.boc) {
-          setStatusMessage('Transaction gönderildi, doğrulama bekleniyor...');
+          setStatusMessage('Transaction gönderildi!');
+          setTxStatus('success');
 
-          // Transaction'ı servise kaydet
-          await transactionService.saveTransaction({
-            boc: result.boc,
-            payment_id: paymentId,
+          // Transaction boc'u kaydet
+          const paymentData = {
             amount: amount,
-            address: address
+            address: address,
+            payment_id: paymentId,
+            productName: ''
+          };
+          savePaymentData(paymentData, result.boc);
+
+          // Kullanıcıyı bilgilendir
+          window.Telegram?.WebApp.showPopup({
+            title: 'İşlem Başarılı',
+            message: 'Ödemeniz başarıyla gönderildi! Bot üzerinden takip edebilirsiniz.',
+            buttons: [{ type: 'ok' }]
           });
 
-          // Transaction durumunu kontrol et
-          let status: 'pending' | 'completed' | 'failed' = 'pending';
-          let attempts = 0;
-          const maxAttempts = 60; // 5 dakika (60 * 5 saniye)
-          const checkInterval = 5000; // 5 saniye
-
-          while (status === 'pending' && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            status = await transactionService.checkTransactionStatus(result.boc);
-            attempts++;
-
-            if (status === 'pending') {
-              const remainingTime = Math.round((maxAttempts - attempts) * checkInterval / 1000);
-              const minutes = Math.floor(remainingTime / 60);
-              const seconds = remainingTime % 60;
-              setStatusMessage(
-                `Transaction doğrulanıyor... (${minutes}:${seconds.toString().padStart(2, '0')} dakika kaldı)`
-              );
-            }
-          }
-
-          if (status === 'completed') {
-            setStatusMessage('✅ İşlem başarıyla tamamlandı!');
-            setTxStatus('success');
-            
-            setTimeout(() => {
-              window.Telegram?.WebApp.close();
-            }, 3000);
-          } else if (status === 'failed') {
-            throw new Error('Transaction başarısız oldu');
-          } else {
-            throw new Error('Transaction zaman aşımına uğradı');
-          }
+          // 3 saniye sonra kapat
+          setTimeout(() => {
+            window.Telegram?.WebApp.close();
+          }, 3000);
         }
       } catch (txError: any) {
         if (txError.message?.includes('User rejected')) {
