@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 interface PaymentRecord {
   payment_data: {
@@ -13,29 +13,23 @@ interface PaymentRecord {
   };
 }
 
-export function PaymentDataPage() {
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
-
-  useEffect(() => {
-    // Local storage'dan ödemeleri yükle
-    const storedPayments = localStorage.getItem('ton_payments');
-    if (storedPayments) {
-      setPayments(JSON.parse(storedPayments));
+// Örnek veri
+const SAMPLE_DATA: PaymentRecord[] = [
+  {
+    payment_data: {
+      amount: "0",
+      address: "EQBvW8Z5huBkMJYdnfAEM5JqTNkuWX3diqYENkWsIL0XggGG",
+      payment_id: "test123",
+      productName: "Test Product"
     }
-  }, []);
+  }
+];
 
-  // JSON formatında veriyi döndür
-  useEffect(() => {
-    // Content-Type'ı application/json yap
-    document.querySelector('head')?.insertAdjacentHTML(
-      'beforeend',
-      '<meta http-equiv="Content-Type" content="application/json; charset=utf-8">'
-    );
-
-    // Sayfayı JSON olarak render et
-    document.body.textContent = JSON.stringify(payments, null, 2);
-  }, [payments]);
-
-  // Artık UI render etmemize gerek yok
-  return null;
+export function PaymentDataPage() {
+  // Direkt JSON olarak render et
+  return (
+    <pre style={{ margin: 0, padding: 20 }}>
+      {JSON.stringify(SAMPLE_DATA, null, 2)}
+    </pre>
+  );
 } 
