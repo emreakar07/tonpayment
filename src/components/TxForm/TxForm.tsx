@@ -77,18 +77,16 @@ export function TxForm() {
       setTxStatus('pending');
       setStatusMessage('İşlem başlatılıyor...');
 
+      // Comment'i base64'e çevir
+      const messageBase64 = btoa(`ton-payment-id:${paymentId}`);
+
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 600,
         messages: [
           {
             address: address,
             amount: amount,
-            payload: beginCell()
-              .storeUint(0, 32) // op code 0 for text messages
-              .storeBuffer(Buffer.from(paymentId, 'utf-8')) // payment_id'yi mesaj olarak gönder
-              .endCell()
-              .toBoc()
-              .toString('base64')
+            payload: messageBase64 // Direkt base64 string olarak gönder
           }
         ],
         network: CHAIN.MAINNET
