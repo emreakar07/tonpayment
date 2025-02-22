@@ -3,6 +3,7 @@ import './style.scss';
 import { CHAIN, SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { createClient } from '@supabase/supabase-js';
 import eruda from "eruda";
+import { transactionService } from '../../services/TransactionService';
 
 // Telegram WebApp için tip tanımlaması
 declare global {
@@ -114,7 +115,6 @@ export function TxForm() {
 
   const handleSend = useCallback(async () => {
     try {
-      // İşlem başlangıcı
       setTxStatus('pending');
       setStatusMessage('İşlem başlatılıyor...');
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -127,54 +127,64 @@ export function TxForm() {
             amount: amount,
           }
         ],
+        network: CHAIN.MAINNET
       };
 
-      // Cüzdana gönderme
       setStatusMessage('Cüzdan onayı bekleniyor...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
       try {
         const result = await tonConnectUi.sendTransaction(tx);
         
-        // Transaction başarılı olduysa
         if (result?.boc) {
-          setStatusMessage('Transaction başarıyla gönderildi!');
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          setStatusMessage('Veritabanı güncelleniyor...');
-          try {
-            const { error: updateError } = await supabase
-              .from('orders')
-              .update({
-                status: 'completed',
-                transaction_hash: result.boc,
-              })
-              .eq('status', 'pending');
+          setStatusMessage('Transaction gönderildi, doğrulama bekleniyor...');
 
-            if (updateError) {
-              throw new Error('Veritabanı güncellenemedi');
+          // Transaction'ı servise kaydet
+          await transactionService.saveTransaction({
+            boc: result.boc,
+            payment_id: paymentId,
+            amount: amount,
+            address: address
+          });
+
+          // Transaction durumunu kontrol et
+          let status: 'pending' | 'completed' | 'failed' = 'pending';
+          let attempts = 0;
+          const maxAttempts = 60; // 5 dakika (60 * 5 saniye)
+          const checkInterval = 5000; // 5 saniye
+
+          while (status === 'pending' && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            status = await transactionService.checkTransactionStatus(result.boc);
+            attempts++;
+
+            if (status === 'pending') {
+              const remainingTime = Math.round((maxAttempts - attempts) * checkInterval / 1000);
+              const minutes = Math.floor(remainingTime / 60);
+              const seconds = remainingTime % 60;
+              setStatusMessage(
+                `Transaction doğrulanıyor... (${minutes}:${seconds.toString().padStart(2, '0')} dakika kaldı)`
+              );
             }
+          }
 
-            setStatusMessage('✅ İşlem tamamlandı! Hash: ' + result.boc.slice(0, 8) + '...');
+          if (status === 'completed') {
+            setStatusMessage('✅ İşlem başarıyla tamamlandı!');
             setTxStatus('success');
             
-            // İşlem başarılı olduktan 3 saniye sonra WebApp'i kapatabiliriz
             setTimeout(() => {
               window.Telegram?.WebApp.close();
             }, 3000);
-
-          } catch (dbError) {
-            throw new Error('Veritabanı güncellenirken hata oluştu');
+          } else if (status === 'failed') {
+            throw new Error('Transaction başarısız oldu');
+          } else {
+            throw new Error('Transaction zaman aşımına uğradı');
           }
-        } else {
-          throw new Error('Transaction hash alınamadı');
         }
       } catch (txError: any) {
-        // Kullanıcı işlemi reddettiyse
         if (txError.message?.includes('User rejected')) {
           setStatusMessage('❌ İşlem kullanıcı tarafından reddedildi');
         } else {
-          setStatusMessage('❌ Transaction gönderilemedi: ' + txError.message);
+          setStatusMessage('❌ ' + txError.message);
         }
         setTxStatus('error');
       }
@@ -183,7 +193,7 @@ export function TxForm() {
       setStatusMessage('❌ ' + (err.message || 'Beklenmeyen bir hata oluştu'));
       setTxStatus('error');
     }
-  }, [address, amount, tonConnectUi]);
+  }, [address, amount, paymentId, tonConnectUi]);
 
   return (
     <div className="send-tx-form">
