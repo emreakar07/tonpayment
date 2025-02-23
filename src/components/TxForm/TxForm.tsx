@@ -17,7 +17,7 @@ export function TxForm() {
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
-  const [comment, setComment] = useState(`Payment ID: ${paymentId}`);
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -165,16 +165,17 @@ export function TxForm() {
         </div>
 
         <div className="input-group">
-          <label>Message:</label>
-          <input 
-            type="text" 
+          <label>Comment:</label>
+          <textarea 
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Enter your message"
+            placeholder="Enter your comment (optional)"
+            className="comment-input"
+            rows={3}
           />
         </div>
 
-        {renderStatus()}  {/* Transaction durumunu göster */}
+        {renderStatus()}
 
         {wallet ? (
           <button 
