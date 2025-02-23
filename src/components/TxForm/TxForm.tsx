@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
-import { beginCell } from '@ton/core';
+import { beginCell, storeStateInit, toNano } from "@ton/core";
 
 interface PaymentData {
   amount: string;
@@ -38,30 +38,49 @@ export function TxForm() {
     }
   }, []);
 
+  // Transaction durumunu dinle
+  useEffect(() => {
+    const unsubscribe = tonConnectUi.onStatusChange((wallet) => {
+      if (!wallet) return; // Cüzdan bağlı değil
+      
+      console.log('Wallet Info:', {
+        address: wallet.account.address,
+        network: wallet.account.chain,
+        platform: wallet.device.platform,
+        appName: wallet.device.appName
+      });
+    });
+
+    // Component unmount olduğunda listener'ı kaldır
+    return () => unsubscribe();
+  }, [tonConnectUi]);
+
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
       
-      // Yorum metni
-      const comment = `Payment ID: ${paymentId}`;
-
-      // Yorum hücresi oluştur
-      const commentCell = beginCell()
-        .storeUint(0, 32)           // 32 bit sıfır (yorum mesajı olduğunu belirtir)
-        .storeStringTail(comment)   // yorum metnini yaz
+      // Comment formatını düzeltelim
+      const message = beginCell()
+        .storeUint(0, 32)  // op code for text message
+        .storeStringTail(`Payment ID: ${paymentId}`)  // direkt string kullanabiliriz
         .endCell();
 
-      // Transaction'ı hazırla
       const tx: SendTransactionRequest = {
-        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 dakika geçerli
+        validUntil: Math.floor(Date.now() / 1000) + 60, // 60 saniye yeterli
         messages: [
           {
-            address: address,     // hedef adres
-            amount: amount,       // miktar (nanoTON)
-            payload: commentCell.toBoc().toString('base64') // yorum bilgisi
+            address: address,
+            amount: amount,
+            payload: message.toBoc().toString('base64')
           }
         ],
       };
+
+      console.log('Sending transaction:', {
+        address,
+        amount,
+        payload: message.toBoc().toString('base64')
+      });
 
       const result = await tonConnectUi.sendTransaction(tx);
       
