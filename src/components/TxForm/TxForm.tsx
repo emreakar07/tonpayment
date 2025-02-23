@@ -17,6 +17,7 @@ export function TxForm() {
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
+  const [comment, setComment] = useState(`Payment ID: ${paymentId}`);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -32,6 +33,7 @@ export function TxForm() {
         setAmount(amountInNano);
         setAddress(paymentData.address);
         setPaymentId(paymentData.payment_id);
+        setComment(`Payment ID: ${paymentData.payment_id}`);
       } catch (error) {
         console.error('Error parsing payment data:', error);
       }
@@ -62,7 +64,7 @@ export function TxForm() {
       // Comment formatını düzeltelim
       const message = beginCell()
         .storeUint(0, 32)  // op code for text message
-        .storeStringTail(`Payment ID: ${paymentId}`)  // direkt string kullanabiliriz
+        .storeStringTail(comment)
         .endCell();
 
       const tx: SendTransactionRequest = {
@@ -108,7 +110,7 @@ export function TxForm() {
         window.Telegram.WebApp.MainButton.show();
       }
     }
-  }, [address, amount, paymentId, tonConnectUi]);
+  }, [address, amount, paymentId, comment, tonConnectUi]);
 
   // Transaction durumuna göre UI göster
   const renderStatus = () => {
@@ -159,6 +161,16 @@ export function TxForm() {
             type="text" 
             value={paymentId} 
             readOnly
+          />
+        </div>
+
+        <div className="input-group">
+          <label>Message:</label>
+          <input 
+            type="text" 
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Enter your message"
           />
         </div>
 
