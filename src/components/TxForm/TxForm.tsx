@@ -61,27 +61,21 @@ export function TxForm() {
     try {
       setTxStatus('pending');
       
-      // Comment formatını düzeltelim
-      const message = beginCell()
-        .storeUint(0, 32)  // op code for text message
-        .storeStringTail(comment)
-        .endCell();
-
       const tx: SendTransactionRequest = {
-        validUntil: Math.floor(Date.now() / 1000) + 60, // 60 saniye yeterli
+        validUntil: Math.floor(Date.now() / 1000) + 60,
         messages: [
           {
             address: address,
             amount: amount,
-            payload: message.toBoc().toString('base64')
+            payload : comment
           }
-        ],
+        ]
       };
 
       console.log('Sending transaction:', {
         address,
         amount,
-        payload: message.toBoc().toString('base64')
+        data: comment
       });
 
       const result = await tonConnectUi.sendTransaction(tx);
