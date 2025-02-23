@@ -3,6 +3,13 @@ import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { beginCell } from '@ton/core';
 import { Address, TonClient } from '@ton/ton';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase client oluştur
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL as string,
+  import.meta.env.VITE_SUPABASE_ANON_KEY as string
+);
 
 interface PaymentData {
   amount: string;
@@ -38,6 +45,29 @@ const defaultTx: SendTransactionRequest = {
     }
     */
   ],
+};
+
+const checkAndUpdateSupabase = async (paymentId: string, txHash: string) => {
+  try {
+    // Orders tablosunu güncelle
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ 
+        status: 'completed',
+        tx_hash: txHash,
+      })
+      .eq('payment_id', paymentId);
+
+    if (error) {
+      console.error('Supabase update error:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating Supabase:', error);
+    return false;
+  }
 };
 
 const checkTransaction = async (txHash: string, address: string) => {
@@ -141,13 +171,10 @@ export function TxForm() {
       const updatedTxs = pendingTxs.filter((t: PendingTx) => t.hash !== tx.hash);
       localStorage.setItem('pendingTransactions', JSON.stringify(updatedTxs));
 
-      // Telegram'a bildir
-      if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.sendData(JSON.stringify({
-          status: 'success',
-          payment_id: tx.payment_id,
-          tx_hash: tx.hash
-        }));
+      // Supabase'i güncelle
+      const updated = await checkAndUpdateSupabase(tx.payment_id, tx.hash);
+      if (updated) {
+        setTxStatus('success');
       }
     }
   };

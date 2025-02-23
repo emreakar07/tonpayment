@@ -11,6 +11,7 @@
     "start": "vite"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
     "@ton-community/assets-sdk": "0.0.5",
     "@ton/core": "^0.56.3",
     "@ton/crypto": "^3.2.0",
