@@ -67,34 +67,26 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
-            payload : comment
+            payload: comment
           }
         ]
       };
 
-      console.log('Sending transaction:', {
-        address,
-        amount,
-        data: comment
-      });
-
       const result = await tonConnectUi.sendTransaction(tx);
       
-      if (result) {
-        const txHash = result.boc;
-        console.log('Transaction hash:', txHash);
-        setTxStatus('success');
-
-        if (window.Telegram?.WebApp) {
-          window.Telegram.WebApp.MainButton.setText('Payment Successful!');
-          window.Telegram.WebApp.MainButton.show();
-          window.Telegram.WebApp.sendData(JSON.stringify({
-            status: 'success',
-            payment_id: paymentId,
-            tx_hash: txHash
-          }));
-        }
+      // Eğer buraya kadar geldiyse, transaction başarıyla gönderilmiş demektir
+      setTxStatus('success');
+      
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.MainButton.setText('Payment Successful!');
+        window.Telegram.WebApp.MainButton.show();
+        window.Telegram.WebApp.sendData(JSON.stringify({
+          status: 'success',
+          payment_id: paymentId,
+          tx_hash: result.boc
+        }));
       }
+
     } catch (error) {
       console.error('Transaction error:', error);
       setTxStatus('error');
