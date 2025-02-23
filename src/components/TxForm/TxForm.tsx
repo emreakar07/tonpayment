@@ -49,7 +49,7 @@ export function TxForm() {
         address: wallet.account.address,
         network: wallet.account.chain,
         platform: wallet.device.platform,
-        appName: wallet.device.appName
+        appName: wallet.device.appName,
       });
     });
 

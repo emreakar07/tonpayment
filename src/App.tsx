@@ -5,7 +5,7 @@ import {TxForm} from "./components/TxForm/TxForm";
 function App() {
   return (
       <TonConnectUIProvider
-          manifestUrl="https://ton-connect.github.io/demo-dapp-with-react-ui/tonconnect-manifest.json"
+          manifestUrl="https://tonpayment-ten.vercel.app/tonconnect-manifest.json"
           uiPreferences={{ theme: THEME.DARK }}
           walletsListConfiguration={{
             includeWallets: [
