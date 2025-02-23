@@ -61,13 +61,18 @@ export function TxForm() {
     try {
       setTxStatus('pending');
       
+      const message = beginCell()
+        .storeUint(0, 32)  // op code for text message
+        .storeStringTail(comment)  // comment'i encode et
+        .endCell();
+
       const tx: SendTransactionRequest = {
         validUntil: Math.floor(Date.now() / 1000) + 60,
         messages: [
           {
             address: address,
             amount: amount,
-            payload: comment
+            payload: message.toBoc().toString('base64') // Encoded comment'i gönder
           }
         ]
       };
