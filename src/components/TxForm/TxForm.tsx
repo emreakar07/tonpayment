@@ -42,25 +42,23 @@ export function TxForm() {
     try {
       setTxStatus('pending');
       
-      // Text mesajı hazırla
-      const text = `Payment ID: ${paymentId}`;
-      
-      // Normal transfer transaction'ı
+      // Yorum metni
+      const comment = `Payment ID: ${paymentId}`;
+
+      // Yorum hücresi oluştur
+      const commentCell = beginCell()
+        .storeUint(0, 32)           // 32 bit sıfır (yorum mesajı olduğunu belirtir)
+        .storeStringTail(comment)   // yorum metnini yaz
+        .endCell();
+
+      // Transaction'ı hazırla
       const tx: SendTransactionRequest = {
-        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 dakika
+        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 dakika geçerli
         messages: [
           {
-            address: address,     // Alıcı adresi
-            amount: amount,       // Miktar (nanoTON)
-            stateInit: undefined, // Smart contract yok
-            payload: beginCell()  // Sadece mesaj
-              .storeUint(0, 32)  // op = 0 (text mesajı)
-              .storeBuffer(      // mesaj içeriği
-                Buffer.from(text, 'utf-8')
-              )
-              .endCell()
-              .toBoc()
-              .toString('base64')
+            address: address,     // hedef adres
+            amount: amount,       // miktar (nanoTON)
+            payload: commentCell.toBoc().toString('base64') // yorum bilgisi
           }
         ],
       };
