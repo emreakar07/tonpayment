@@ -43,23 +43,24 @@ export function TxForm() {
       setTxStatus('pending');
       
       // Text mesajı hazırla
-      const text = `Payment ID: ${paymentId}`; // İstediğiniz mesaj
+      const text = `Payment ID: ${paymentId}`;
       
-      const message = beginCell()
-        .storeUint(0, 32)        // op = 0 (text mesajı)
-        .storeUint(0, 64)        // query id = 0
-        .storeBuffer(            // mesaj içeriği
-          Buffer.from(text, 'utf-8')
-        )
-        .endCell();
-
+      // Normal transfer transaction'ı
       const tx: SendTransactionRequest = {
-        validUntil: Math.floor(Date.now() / 1000) + 600,
+        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 dakika
         messages: [
           {
-            address: address,
-            amount: amount,
-            payload: message.toBoc().toString('base64')
+            address: address,     // Alıcı adresi
+            amount: amount,       // Miktar (nanoTON)
+            stateInit: undefined, // Smart contract yok
+            payload: beginCell()  // Sadece mesaj
+              .storeUint(0, 32)  // op = 0 (text mesajı)
+              .storeBuffer(      // mesaj içeriği
+                Buffer.from(text, 'utf-8')
+              )
+              .endCell()
+              .toBoc()
+              .toString('base64')
           }
         ],
       };
@@ -69,14 +70,11 @@ export function TxForm() {
       if (result) {
         const txHash = result.boc;
         console.log('Transaction hash:', txHash);
-        
         setTxStatus('success');
 
-        // Eğer Telegram Web App içindeyse, başarılı işlemi Telegram'a bildir
         if (window.Telegram?.WebApp) {
           window.Telegram.WebApp.MainButton.setText('Payment Successful!');
           window.Telegram.WebApp.MainButton.show();
-          // İsteğe bağlı: Başarılı ödemeyi bot'a bildir
           window.Telegram.WebApp.sendData(JSON.stringify({
             status: 'success',
             payment_id: paymentId,
@@ -88,7 +86,6 @@ export function TxForm() {
       console.error('Transaction error:', error);
       setTxStatus('error');
       
-      // Telegram Web App içindeyse hatayı göster
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.MainButton.setText('Payment Failed!');
         window.Telegram.WebApp.MainButton.show();
