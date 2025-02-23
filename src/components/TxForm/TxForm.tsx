@@ -2,115 +2,12 @@ import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { beginCell } from '@ton/core';
-import { Address, TonClient } from '@ton/ton';
-import { createClient } from '@supabase/supabase-js';
-
-// Supabase client oluştur
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL as string,
-  import.meta.env.VITE_SUPABASE_ANON_KEY as string
-);
 
 interface PaymentData {
   amount: string;
   address: string;
   payment_id: string;
   productName: string;
-}
-
-// In this example, we are using a predefined smart contract state initialization (`stateInit`)
-// to interact with an "EchoContract". This contract is designed to send the value back to the sender,
-// serving as a testing tool to prevent users from accidentally spending money.
-const defaultTx: SendTransactionRequest = {
-  // The transaction is valid for 10 minutes from now, in unix epoch seconds.
-  validUntil: Math.floor(Date.now() / 1000) + 600,
-  messages: [
-    {
-      // The receiver's address.
-      address: 'EQCKWpx7cNMpvmcN5ObM5lLUZHZRFKqYA4xmw9jOry0ZsF9M',
-      // Amount to send in nanoTON. For example, 0.005 TON is 5000000 nanoTON.
-      amount: '5000000',
-      // (optional) State initialization in boc base64 format.
-      stateInit: 'te6cckEBBAEAOgACATQCAQAAART/APSkE/S88sgLAwBI0wHQ0wMBcbCRW+D6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsAlxCarA==',
-      // (optional) Payload in boc base64 format.
-      payload: 'te6ccsEBAQEADAAMABQAAAAASGVsbG8hCaTc/g==',
-    },
-
-    // Uncomment the following message to send two messages in one transaction.
-    /*
-    {
-      // Note: Funds sent to this address will not be returned back to the sender.
-      address: 'UQAuz15H1ZHrZ_psVrAra7HealMIVeFq0wguqlmFno1f3B-m',
-      amount: toNano('0.01').toString(),
-    }
-    */
-  ],
-};
-
-const checkAndUpdateSupabase = async (paymentId: string, txHash: string) => {
-  try {
-    // Orders tablosunu güncelle
-    const { data, error } = await supabase
-      .from('orders')
-      .update({ 
-        status: 'completed',
-        tx_hash: txHash,
-      })
-      .eq('payment_id', paymentId);
-
-    if (error) {
-      console.error('Supabase update error:', error);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error updating Supabase:', error);
-    return false;
-  }
-};
-
-const checkTransaction = async (txHash: string, address: string) => {
-  try {
-    // TonClient oluştur
-    const client = new TonClient({
-      endpoint: 'https://toncenter.com/api/v2/jsonRPC',
-      apiKey: 'YOUR_API_KEY' // Opsiyonel
-    });
-
-    // Son 20 transaction'ı getir
-    const transactions = await client.getTransactions(Address.parse(address), {
-      limit: 20,
-    });
-
-    // Transaction'ı bul
-    const tx = transactions.find(tx => {
-      const currentHash = tx.hash().toString('base64');
-      return currentHash === txHash;
-    });
-    
-    if (tx) {
-      // Transaction başarılı mı kontrol et
-      const description = tx.description;
-      if (description.type === 'generic') {
-        return description.computePhase.type === 'vm' && 
-               description.computePhase.exitCode === 0;
-      }
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('Error checking transaction:', error);
-    return false;
-  }
-};
-
-// Pending transaction'ları saklamak için
-interface PendingTx {
-  hash: string;
-  address: string;
-  payment_id: string;
-  timestamp: number;
 }
 
 export function TxForm() {
@@ -120,7 +17,6 @@ export function TxForm() {
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
-  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -142,50 +38,19 @@ export function TxForm() {
     }
   }, []);
 
-  // Component mount olduğunda pending transaction'ları kontrol et
-  useEffect(() => {
-    const pendingTxs = localStorage.getItem('pendingTransactions');
-    if (pendingTxs) {
-      const transactions: PendingTx[] = JSON.parse(pendingTxs);
-      
-      // Son 2 saat içindeki transaction'ları kontrol et
-      const recentTxs = transactions.filter(tx => 
-        Date.now() - tx.timestamp < 2 * 60 * 60 * 1000
-      );
-
-      // Her transaction için kontrol başlat
-      recentTxs.forEach(tx => {
-        checkAndUpdateStatus(tx);
-      });
-
-      // Eski transaction'ları temizle
-      localStorage.setItem('pendingTransactions', JSON.stringify(recentTxs));
-    }
-  }, []);
-
-  const checkAndUpdateStatus = async (tx: PendingTx) => {
-    const isSuccess = await checkTransaction(tx.hash, tx.address);
-    if (isSuccess) {
-      // Transaction başarılı - localStorage'dan kaldır
-      const pendingTxs = JSON.parse(localStorage.getItem('pendingTransactions') || '[]');
-      const updatedTxs = pendingTxs.filter((t: PendingTx) => t.hash !== tx.hash);
-      localStorage.setItem('pendingTransactions', JSON.stringify(updatedTxs));
-
-      // Supabase'i güncelle
-      const updated = await checkAndUpdateSupabase(tx.payment_id, tx.hash);
-      if (updated) {
-        setTxStatus('success');
-      }
-    }
-  };
-
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
       
+      // Text mesajı hazırla
+      const text = `Payment ID: ${paymentId}`; // İstediğiniz mesaj
+      
       const message = beginCell()
-        .storeUint(0, 32)
-        .storeBuffer(Buffer.from(paymentId, 'utf-8'))
+        .storeUint(0, 32)        // op = 0 (text mesajı)
+        .storeUint(0, 64)        // query id = 0
+        .storeBuffer(            // mesaj içeriği
+          Buffer.from(text, 'utf-8')
+        )
         .endCell();
 
       const tx: SendTransactionRequest = {
@@ -203,25 +68,31 @@ export function TxForm() {
       
       if (result) {
         const txHash = result.boc;
+        console.log('Transaction hash:', txHash);
         
-        // Pending transaction'ı localStorage'a kaydet
-        const pendingTx: PendingTx = {
-          hash: txHash,
-          address: address,
-          payment_id: paymentId,
-          timestamp: Date.now()
-        };
+        setTxStatus('success');
 
-        const pendingTxs = JSON.parse(localStorage.getItem('pendingTransactions') || '[]');
-        pendingTxs.push(pendingTx);
-        localStorage.setItem('pendingTransactions', JSON.stringify(pendingTxs));
-
-        // Kontrol işlemini başlat
-        checkAndUpdateStatus(pendingTx);
+        // Eğer Telegram Web App içindeyse, başarılı işlemi Telegram'a bildir
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.MainButton.setText('Payment Successful!');
+          window.Telegram.WebApp.MainButton.show();
+          // İsteğe bağlı: Başarılı ödemeyi bot'a bildir
+          window.Telegram.WebApp.sendData(JSON.stringify({
+            status: 'success',
+            payment_id: paymentId,
+            tx_hash: txHash
+          }));
+        }
       }
     } catch (error) {
       console.error('Transaction error:', error);
       setTxStatus('error');
+      
+      // Telegram Web App içindeyse hatayı göster
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.MainButton.setText('Payment Failed!');
+        window.Telegram.WebApp.MainButton.show();
+      }
     }
   }, [address, amount, paymentId, tonConnectUi]);
 
