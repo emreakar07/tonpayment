@@ -188,12 +188,19 @@ export function TxForm() {
         </div>
         
         <div className="input-group">
-          <label>Amount (in nanoTON):</label>
+          <label>Amount:</label>
           <input 
             type="text" 
-            value={amount} 
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Enter amount in nanoTON"
+            value={`${Number(amount) / 1_000_000_000} TON`} 
+            readOnly
+          />
+        </div>
+
+        <div className="input-group">
+          <label>Payment ID:</label>
+          <input 
+            type="text" 
+            value={paymentId}
             readOnly
           />
         </div>
@@ -201,14 +208,13 @@ export function TxForm() {
         <div className="input-group">
           <label>Transaction Data:</label>
           <textarea 
-            value={JSON.stringify({
-              payment_id: paymentId,
-              timestamp: Date.now(),
-              type: 'payment'
-            }, null, 2)}
+            value={`Payment ID: ${paymentId}
+Amount: ${Number(amount) / 1_000_000_000} TON
+Address: ${address}
+Timestamp: ${new Date().toLocaleString()}`}
             readOnly
             className="data-preview"
-            rows={5}
+            rows={4}
           />
         </div>
 
