@@ -199,22 +199,16 @@ export function TxForm() {
         </div>
 
         <div className="input-group">
-          <label>Payment ID:</label>
-          <input 
-            type="text" 
-            value={paymentId} 
-            readOnly
-          />
-        </div>
-
-        <div className="input-group">
-          <label>Comment:</label>
+          <label>Transaction Data:</label>
           <textarea 
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Enter your comment (optional)"
-            className="comment-input"
-            rows={3}
+            value={JSON.stringify({
+              payment_id: paymentId,
+              timestamp: Date.now(),
+              type: 'payment'
+            }, null, 2)}
+            readOnly
+            className="data-preview"
+            rows={5}
           />
         </div>
 
