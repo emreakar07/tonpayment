@@ -180,7 +180,7 @@ export function TxForm() {
           <label>Address:</label>
           <input 
             type="text" 
-            value={paymentId || ''}
+            value={address || ''}
             placeholder="No address available"
             readOnly
           />
