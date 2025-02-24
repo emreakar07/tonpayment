@@ -9,9 +9,17 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     minify: false,
-    commonjsOptions: {
-      include: [/node_modules/]  // node_modules'dan gelen modülleri dahil et
+    rollupOptions: {
+      external: ['zod'],  // zod'u external olarak işaretle
+      output: {
+        globals: {
+          zod: 'zod'  // global değişken olarak tanımla
+        }
+      }
     }
+  },
+  optimizeDeps: {
+    include: ['zod']  // zod'u optimize edilecek bağımlılıklara ekle
   },
   base: './',
   server: {
