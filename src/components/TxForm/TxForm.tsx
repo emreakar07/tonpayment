@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
-import { beginCell, storeStateInit, toNano } from "@ton/core";
+import { beginCell, storeStateInit, toNano, Address } from "@ton/core";
 
 interface PaymentData {
   amount: string;
@@ -61,9 +61,22 @@ export function TxForm() {
     try {
       setTxStatus('pending');
       
-      const message = beginCell()
-        .storeUint(0, 32)  // op code for text message
-        .storeStringTail(comment)  // comment'i encode et
+      // Tip dönüşümleri
+      const destinationAddress = Address.parse(address); // string -> Address
+      const amountInNano = BigInt(amount);              // string -> BigInt
+      
+      // Mesaj hücresini oluştur
+      const messageBody = beginCell()
+        .storeUint(0x18, 4)                // message type (external)
+        .storeAddress(destinationAddress)   // destination address (Address tipinde)
+        .storeCoins(amountInNano)          // amount to send (BigInt tipinde)
+        .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)  // message flags & state init
+        .storeRef(                         // message body
+          beginCell()
+            .storeUint(0, 32)             // op code for text message
+            .storeStringTail(paymentId)      // actual message text
+            .endCell()
+        )
         .endCell();
 
       const tx: SendTransactionRequest = {
@@ -72,14 +85,18 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
-            payload: message.toBoc().toString('base64') // Encoded comment'i gönder
+            payload: messageBody.toBoc().toString('base64')
           }
         ]
       };
 
+      console.log('Sending transaction:', {
+        address,
+        amount,
+        payload: messageBody.toBoc().toString('base64')
+      });
+
       const result = await tonConnectUi.sendTransaction(tx);
-      
-      // Eğer buraya kadar geldiyse, transaction başarıyla gönderilmiş demektir
       setTxStatus('success');
       
       if (window.Telegram?.WebApp) {
