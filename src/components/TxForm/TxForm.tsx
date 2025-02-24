@@ -73,8 +73,8 @@ export function TxForm() {
         .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)  // message flags & state init
         .storeRef(                         // message body
           beginCell()
-            .storeUint(0, 32)             // op code for text message
-            .storeStringTail(paymentId)      // actual message text
+            .storeUint(0x0, 32)           // op code for text message (0x0)
+            .storeStringTail(paymentId)    // payment ID as message
             .endCell()
         )
         .endCell();
@@ -85,6 +85,7 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
+            stateInit: undefined,
             payload: messageBody.toBoc().toString('base64')
           }
         ]
