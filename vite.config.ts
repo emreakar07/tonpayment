@@ -8,7 +8,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    minify: false
+    minify: false,
+    commonjsOptions: {
+      include: [/node_modules/]  // node_modules'dan gelen modülleri dahil et
+    }
   },
   base: './',
   server: {
