@@ -67,7 +67,7 @@ export function TxForm() {
       
       // 1. Body olarak gönderme
       const bodyMessage = beginCell()
-        .storeUint(0x18, 4)
+        .storeUint(0x18, 6)
         .storeAddress(destinationAddress)
         .storeCoins(amountInNano)
         .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
@@ -88,7 +88,7 @@ export function TxForm() {
 
       // 2. Data olarak gönderme
       const dataMessage = beginCell()
-        .storeUint(0x18, 4)
+        .storeUint(0x18, 6)
         .storeAddress(destinationAddress)
         .storeCoins(amountInNano)
         .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
