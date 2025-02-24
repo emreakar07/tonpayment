@@ -62,19 +62,48 @@ export function TxForm() {
       setTxStatus('pending');
       
       // Tip dönüşümleri
-      const destinationAddress = Address.parse(address); // string -> Address
-      const amountInNano = BigInt(amount);              // string -> BigInt
+      const destinationAddress = Address.parse(address);
+      const amountInNano = BigInt(amount);
       
-      // Mesaj hücresini oluştur
-      const messageBody = beginCell()
-        .storeUint(0x18, 4)                // message type (external)
-        .storeAddress(destinationAddress)   // destination address (Address tipinde)
-        .storeCoins(amountInNano)          // amount to send (BigInt tipinde)
-        .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)  // message flags & state init
-        .storeRef(                         // message body
+      // 1. Body olarak gönderme
+      const bodyMessage = beginCell()
+        .storeUint(0x18, 4)
+        .storeAddress(destinationAddress)
+        .storeCoins(amountInNano)
+        .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .storeRef(
           beginCell()
-            .storeUint(0x0, 32)           // op code for text message (0x0)
-            .storeStringTail(paymentId)    // payment ID as message
+            .storeBuffer(
+              Buffer.from(
+                JSON.stringify({
+                  payment_id: paymentId,
+                  timestamp: Date.now(),
+                  type: 'payment'
+                })
+              )
+            )
+            .endCell()
+        )
+        .endCell();
+
+      // 2. Data olarak gönderme
+      const dataMessage = beginCell()
+        .storeUint(0x18, 4)
+        .storeAddress(destinationAddress)
+        .storeCoins(amountInNano)
+        .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .storeRef(
+          beginCell()
+            .storeUint(0x706c7374, 32)  // "plst" as hex for "payload store"
+            .storeBuffer(
+              Buffer.from(
+                JSON.stringify({
+                  payment_id: paymentId,
+                  timestamp: Date.now().toString(),
+                  type: 'payment'
+                })
+              )
+            )
             .endCell()
         )
         .endCell();
@@ -85,8 +114,12 @@ export function TxForm() {
           {
             address: address,
             amount: amount,
-            stateInit: undefined,
-            payload: messageBody.toBoc().toString('base64')
+            payload: bodyMessage.toBoc().toString('base64')
+          },
+          {
+            address: address,
+            amount: '0',  // İkinci mesaj için 0 TON gönder
+            payload: dataMessage.toBoc().toString('base64')
           }
         ]
       };
@@ -94,7 +127,8 @@ export function TxForm() {
       console.log('Sending transaction:', {
         address,
         amount,
-        payload: messageBody.toBoc().toString('base64')
+        bodyPayload: bodyMessage.toBoc().toString('base64'),
+        dataPayload: dataMessage.toBoc().toString('base64')
       });
 
       const result = await tonConnectUi.sendTransaction(tx);
