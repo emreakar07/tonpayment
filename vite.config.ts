@@ -9,6 +9,9 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     minify: false,
+    rollupOptions: {
+      external: ['zod']
+    }
   },
   base: './',
   server: {
