@@ -209,9 +209,9 @@ export function TxForm() {
           <label>Transaction Data:</label>
           <textarea 
             value={`Payment ID: ${paymentId}
-Amount: ${Number(amount) / 1_000_000_000} TON
-Address: ${address}
-Timestamp: ${new Date().toLocaleString()}`}
+            Amount: ${Number(amount) / 1_000_000_000} TON
+            Address: ${address}
+            Timestamp: ${new Date().toLocaleString()}`}
             readOnly
             className="data-preview"
             rows={4}

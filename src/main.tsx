@@ -1,5 +1,7 @@
 import './patch-local-storage-for-github-pages';
 import './polyfills';
+import './index.scss';
+import './App.scss';
 import eruda from "eruda";
 
 import React, {StrictMode} from 'react'
