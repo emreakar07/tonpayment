@@ -180,9 +180,8 @@ export function TxForm() {
           <label>Address:</label>
           <input 
             type="text" 
-            value={address} 
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Enter TON address"
+            value={address || ''}
+            placeholder="No address available"
             readOnly
           />
         </div>
@@ -191,7 +190,7 @@ export function TxForm() {
           <label>Amount:</label>
           <input 
             type="text" 
-            value={`${Number(amount) / 1_000_000_000} TON`} 
+            value={amount ? `${Number(amount) / 1_000_000_000} TON` : '0 TON'}
             readOnly
           />
         </div>
@@ -200,7 +199,8 @@ export function TxForm() {
           <label>Payment ID:</label>
           <input 
             type="text" 
-            value={paymentId}
+            value={paymentId || ''}
+            placeholder="No payment ID"
             readOnly
           />
         </div>
@@ -208,10 +208,10 @@ export function TxForm() {
         <div className="input-group">
           <label>Transaction Data:</label>
           <textarea 
-            value={`Payment ID: ${paymentId}
-            Amount: ${Number(amount) / 1_000_000_000} TON
-            Address: ${address}
-            Timestamp: ${new Date().toLocaleString()}`}
+            value={`Payment ID: ${paymentId || 'Not available'}
+Amount: ${amount ? `${Number(amount) / 1_000_000_000} TON` : '0 TON'}
+Address: ${address || 'Not available'}
+Timestamp: ${new Date().toLocaleString()}`}
             readOnly
             className="data-preview"
             rows={4}
@@ -224,7 +224,7 @@ export function TxForm() {
           <button 
             onClick={handleSend} 
             className="send-button"
-            disabled={txStatus === 'pending'}
+            disabled={txStatus === 'pending' || !address || !amount}
           >
             {txStatus === 'pending' ? 'Sending...' : 'Send Transaction'}
           </button>
