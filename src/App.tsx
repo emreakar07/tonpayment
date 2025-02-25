@@ -1,13 +1,14 @@
 import './App.scss'
 import {THEME, TonConnectUIProvider, useTonConnectUI} from "@tonconnect/ui-react";
 import {TxForm} from "./components/TxForm/TxForm";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 // Timeout süresi (5 dakika)
 const SESSION_TIMEOUT = 5 * 60 * 1000;
 
 function AppContent() {
   const [tonConnectUI] = useTonConnectUI();
+  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes in seconds
 
   useEffect(() => {
     // Bağlantı zamanını localStorage'a kaydet
@@ -41,15 +42,39 @@ function AppContent() {
     // Sayfa yüklendiğinde de kontrol et
     checkTimeout();
 
+    // Check if we're in Telegram WebApp
+    const isInTelegram = !!window.Telegram?.WebApp;
+
+    if (!isInTelegram) return; // Only apply timeout in Telegram WebApp
+
+    const timer = setInterval(() => {
+      setTimeLeft((prevTime) => {
+        if (prevTime <= 1) {
+          // Close the WebApp when time is up
+          window.Telegram?.WebApp?.close();
+          return 0;
+        }
+        return prevTime - 1;
+      });
+    }, 1000);
+
     return () => {
       unsubscribe();
       clearInterval(interval);
+      clearInterval(timer);
     };
   }, [tonConnectUI]);
 
   return (
-    <div className="app">
-      <TxForm />
+    <div className="container">
+      <div className="inner-container">
+        {timeLeft > 0 && (
+          <div className="timeout-counter">
+            Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+          </div>
+        )}
+        <TxForm />
+      </div>
     </div>
   );
 }
