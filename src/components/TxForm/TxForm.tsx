@@ -195,29 +195,6 @@ export function TxForm() {
           />
         </div>
 
-        <div className="input-group">
-          <label>Payment ID:</label>
-          <input 
-            type="text" 
-            value={paymentId || ''}
-            placeholder="No payment ID"
-            readOnly
-          />
-        </div>
-
-        <div className="input-group">
-          <label>Transaction Data:</label>
-          <textarea 
-            value={`Payment ID: ${paymentId || 'Not available'}
-Amount: ${amount ? `${Number(amount) / 1_000_000_000} TON` : '0 TON'}
-Address: ${address || 'Not available'}
-Timestamp: ${new Date().toLocaleString()}`}
-            readOnly
-            className="data-preview"
-            rows={4}
-          />
-        </div>
-
         {renderStatus()}
 
         {wallet ? (
