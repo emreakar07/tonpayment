@@ -5,11 +5,13 @@ import { beginCell, storeStateInit, toNano, Address } from "@ton/core";
 import { 
   USDT_ADDRESS, 
   USDT_ADDRESS_NON_BOUNCEABLE,
+  USDT_DECIMALS,
   createJettonTransferMessage, 
   createCommentPayload, 
   formatAmount,
   createSimplifiedJettonTransferRequest,
-  createAlternativeJettonTransferRequest
+  createAlternativeJettonTransferRequest,
+  predictJettonWalletAddress
 } from '../../utils/jetton-utils';
 
 interface PaymentData {
@@ -51,17 +53,19 @@ export function TxForm() {
         const decodedData = atob(paymentDataBase64);
         const paymentData: PaymentData = JSON.parse(decodedData);
         
-        const amountInNano = (parseFloat(paymentData.amount) * 1_000_000_000).toString();
+        // Set token type if provided, default to TON
+        if (paymentData.token_type) {
+          setTokenType(paymentData.token_type);
+        }
+        
+        // Convert amount to nano units based on token type
+        const decimals = paymentData.token_type === 'USDT' ? USDT_DECIMALS : 9;
+        const amountInNano = (parseFloat(paymentData.amount) * Math.pow(10, decimals)).toString();
         
         setAmount(amountInNano);
         setAddress(paymentData.address);
         setPaymentId(paymentData.payment_id);
         setComment(`Payment ID: ${paymentData.payment_id}`);
-        
-        // Set token type if provided, default to TON
-        if (paymentData.token_type) {
-          setTokenType(paymentData.token_type);
-        }
       } catch (error) {
         console.error('Error parsing payment data:', error);
         setErrorMessage('Error parsing payment data');
@@ -190,7 +194,8 @@ export function TxForm() {
           amount: amountInNano.toString(),
           tokenType: tokenType,
           usdt_address: USDT_ADDRESS,
-          transferMethod
+          transferMethod,
+          decimals: USDT_DECIMALS
         });
 
         let tx: SendTransactionRequest;
@@ -238,20 +243,71 @@ export function TxForm() {
           
           console.log('Using simplified method with request:', tx);
         }
-        else {
+        else if (transferMethod === 'alternative') {
           // Alternative method - using createAlternativeJettonTransferRequest
-          // Note: This requires knowing the user's Jetton wallet address
-          // For simplicity, we'll use the non-bounceable USDT address as a placeholder
-          tx = createAlternativeJettonTransferRequest({
-            jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE, // This should be the user's Jetton wallet address
-            toAddress: address,
-            amount: amountInNano,
-            fromAddress: userAddress,
-            comment: `Payment ID: ${paymentId}`,
-            attachedAmount: toNano('0.25') // Even more TON for fees
-          });
+          // Calculate the user's Jetton wallet address
+          const parsedUserAddress = Address.parse(userAddress);
+          const parsedJettonMasterAddress = Address.parse(USDT_ADDRESS);
+          
+          // Try to predict the user's Jetton wallet address
+          try {
+            const jettonWalletAddress = predictJettonWalletAddress(
+              parsedUserAddress,
+              parsedJettonMasterAddress
+            );
+            
+            console.log('Predicted Jetton wallet address:', jettonWalletAddress.toString());
+            
+            tx = createAlternativeJettonTransferRequest({
+              jettonWalletAddress: jettonWalletAddress.toString(),
+              toAddress: address,
+              amount: amountInNano,
+              fromAddress: userAddress,
+              comment: `Payment ID: ${paymentId}`,
+              attachedAmount: toNano('0.25') // Even more TON for fees
+            });
+          } catch (error) {
+            console.error('Error predicting Jetton wallet address:', error);
+            // Fallback to using the non-bounceable USDT address
+            tx = createAlternativeJettonTransferRequest({
+              jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE,
+              toAddress: address,
+              amount: amountInNano,
+              fromAddress: userAddress,
+              comment: `Payment ID: ${paymentId}`,
+              attachedAmount: toNano('0.25') // Even more TON for fees
+            });
+          }
           
           console.log('Using alternative method with request:', tx);
+        }
+        else {
+          // Default to standard method if transferMethod is not recognized
+          console.warn('Unknown transfer method, defaulting to standard');
+          
+          const parsedUserAddress = Address.parse(userAddress);
+          const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
+          const uniqueQueryId = Math.floor(Math.random() * 2**32);
+          
+          const jettonTransferMessage = createJettonTransferMessage({
+            amount: amountInNano,
+            toAddress: destinationAddress,
+            responseAddress: parsedUserAddress,
+            forwardAmount: toNano('0.000000001'),
+            forwardPayload: commentPayload,
+            queryId: uniqueQueryId
+          });
+          
+          tx = {
+            validUntil: Math.floor(Date.now() / 1000) + 300,
+            messages: [
+              {
+                address: USDT_ADDRESS,
+                amount: toNano('0.15').toString(),
+                payload: jettonTransferMessage.toBoc().toString('base64')
+              }
+            ]
+          };
         }
 
         console.log('Transaction sent, waiting for result...');
@@ -317,7 +373,7 @@ export function TxForm() {
   const getFormattedAmount = () => {
     if (!amount) return '0';
     
-    const formattedAmount = formatAmount(amount);
+    const formattedAmount = formatAmount(amount, tokenType);
     return tokenType === 'TON' 
       ? `${formattedAmount} TON` 
       : `${formattedAmount} USDT`;
