@@ -42,7 +42,7 @@ export function TxForm() {
   const [tonConnectUi] = useTonConnectUI();
   const [comment, setComment] = useState('');
   const [tokenType, setTokenType] = useState<'TON' | 'USDT'>('TON');
-  const [transferMethod, setTransferMethod] = useState<'standard' | 'simplified' | 'alternative'>('standard');
+  const [transferMethod, setTransferMethod] = useState<'standard' | 'simplified' | 'alternative'>('simplified');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -212,7 +212,7 @@ export function TxForm() {
             amount: amountInNano,
             toAddress: destinationAddress,
             responseAddress: parsedUserAddress,
-            forwardAmount: toNano('0.000000001'), // 1 nanoton for notification
+            forwardAmount: toNano('0.000000001'), // Exactly 1 nanoton for notification
             forwardPayload: commentPayload,
             queryId: uniqueQueryId
           });
@@ -222,7 +222,7 @@ export function TxForm() {
             messages: [
               {
                 address: USDT_ADDRESS,
-                amount: toNano('0.15').toString(), // 0.15 TON for fees
+                amount: toNano('0.3').toString(), // Increase to 0.3 TON for fees
                 payload: jettonTransferMessage.toBoc().toString('base64')
               }
             ]
@@ -238,7 +238,7 @@ export function TxForm() {
             amount: amountInNano,
             fromAddress: userAddress,
             comment: `Payment ID: ${paymentId}`,
-            attachedAmount: toNano('0.2') // Increase attached TON amount
+            attachedAmount: toNano('0.35') // Increase attached TON amount
           });
           
           console.log('Using simplified method with request:', tx);
@@ -264,7 +264,7 @@ export function TxForm() {
               amount: amountInNano,
               fromAddress: userAddress,
               comment: `Payment ID: ${paymentId}`,
-              attachedAmount: toNano('0.25') // Even more TON for fees
+              attachedAmount: toNano('0.4') // Increase to 0.4 TON for fees
             });
           } catch (error) {
             console.error('Error predicting Jetton wallet address:', error);
@@ -275,7 +275,7 @@ export function TxForm() {
               amount: amountInNano,
               fromAddress: userAddress,
               comment: `Payment ID: ${paymentId}`,
-              attachedAmount: toNano('0.25') // Even more TON for fees
+              attachedAmount: toNano('0.4') // Increase to 0.4 TON for fees
             });
           }
           
@@ -336,11 +336,33 @@ export function TxForm() {
         console.error('Error stack:', error.stack);
         
         // Kullanıcıya daha spesifik hata mesajı göster
-        setErrorMessage(error.message);
+        let errorMsg = error.message;
+        
+        // Yaygın hata mesajlarını daha anlaşılır hale getir
+        if (errorMsg.includes('unable to verify transaction')) {
+          errorMsg = 'Unable to verify transaction. This could be due to insufficient TON balance, incorrect Jetton wallet address, or an issue with the transaction structure.';
+          
+          // Daha fazla debug bilgisi ekle
+          console.error('Debug info for "unable to verify transaction" error:');
+          console.error('- Token type:', tokenType);
+          console.error('- Transfer method:', transferMethod);
+          console.error('- Amount:', amount);
+          console.error('- Destination address:', address);
+          console.error('- USDT address being used:', USDT_ADDRESS);
+          
+          // Kullanıcıya öneriler sun
+          errorMsg += ' Try increasing your TON balance, using a different transfer method, or checking the recipient address.';
+        } else if (errorMsg.includes('insufficient funds')) {
+          errorMsg = 'Insufficient funds. Please make sure you have enough TON to cover the transaction fees.';
+        } else if (errorMsg.includes('invalid address')) {
+          errorMsg = 'Invalid address. Please check the recipient address format.';
+        }
+        
+        setErrorMessage(errorMsg);
         setTxStatus('error');
       } else {
         console.error('Unknown error type:', typeof error);
-        setErrorMessage('Unknown error occurred');
+        setErrorMessage('Unknown error occurred. Please check the console for more details.');
         setTxStatus('error');
       }
       
