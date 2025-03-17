@@ -25,7 +25,7 @@
       font-size: 14px;
     }
     
-    input {
+    input, select {
       width: 100%;
       padding: 12px;
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -37,6 +37,24 @@
       &:focus {
         outline: none;
         border-color: #0098EA;
+      }
+    }
+    
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+      
+      option {
+        background-color: #1e1e1e;
+        color: #fff;
+      }
+      
+      &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
       }
     }
   }
