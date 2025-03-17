@@ -2,7 +2,15 @@ import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { beginCell, storeStateInit, toNano, Address } from "@ton/core";
-import { USDT_ADDRESS, createJettonTransferMessage, createCommentPayload, formatAmount } from '../../utils/jetton-utils';
+import { 
+  USDT_ADDRESS, 
+  USDT_ADDRESS_NON_BOUNCEABLE,
+  createJettonTransferMessage, 
+  createCommentPayload, 
+  formatAmount,
+  createSimplifiedJettonTransferRequest,
+  createAlternativeJettonTransferRequest
+} from '../../utils/jetton-utils';
 
 interface PaymentData {
   amount: string;
@@ -12,15 +20,27 @@ interface PaymentData {
   token_type?: 'TON' | 'USDT'; // Add token type
 }
 
+// Adres doğrulama fonksiyonu
+const isValidTonAddress = (address: string): boolean => {
+  try {
+    Address.parse(address);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 export function TxForm() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const wallet = useTonWallet();
   const [tonConnectUi] = useTonConnectUI();
   const [comment, setComment] = useState('');
   const [tokenType, setTokenType] = useState<'TON' | 'USDT'>('TON');
+  const [transferMethod, setTransferMethod] = useState<'standard' | 'simplified' | 'alternative'>('standard');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -44,6 +64,7 @@ export function TxForm() {
         }
       } catch (error) {
         console.error('Error parsing payment data:', error);
+        setErrorMessage('Error parsing payment data');
       }
     }
   }, []);
@@ -68,6 +89,12 @@ export function TxForm() {
   const handleSend = useCallback(async () => {
     try {
       setTxStatus('pending');
+      setErrorMessage(null);
+      
+      // Adres doğrulama
+      if (!isValidTonAddress(address)) {
+        throw new Error('Invalid TON address');
+      }
       
       // Tip dönüşümleri
       const destinationAddress = Address.parse(address);
@@ -155,39 +182,81 @@ export function TxForm() {
           throw new Error('Wallet not connected');
         }
         
-        const userAddress = Address.parse(wallet.account.address);
+        const userAddress = wallet.account.address;
         
-        // Create comment payload with payment ID
-        const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
-        
-        // Create jetton transfer message
-        const jettonTransferMessage = createJettonTransferMessage({
-          amount: amountInNano,
-          toAddress: destinationAddress,
-          responseAddress: userAddress,
-          forwardAmount: toNano('0.000000001'), // 1 nanoton for notification
-          forwardPayload: commentPayload
-        });
-        
-        const tx: SendTransactionRequest = {
-          validUntil: Math.floor(Date.now() / 1000) + 60,
-          messages: [
-            {
-              address: USDT_ADDRESS,
-              amount: toNano('0.05').toString(), // Attach 0.05 TON for fees
-              payload: jettonTransferMessage.toBoc().toString('base64')
-            }
-          ]
-        };
-
-        console.log('Sending USDT transaction:', {
-          jettonAddress: USDT_ADDRESS,
-          destinationAddress: address,
-          amount,
-          payload: jettonTransferMessage.toBoc().toString('base64')
+        console.log('Starting USDT transfer with parameters:', {
+          from: userAddress,
+          to: address,
+          amount: amountInNano.toString(),
+          tokenType: tokenType,
+          usdt_address: USDT_ADDRESS,
+          transferMethod
         });
 
+        let tx: SendTransactionRequest;
+        
+        if (transferMethod === 'standard') {
+          // Standard method - using createJettonTransferMessage
+          const parsedUserAddress = Address.parse(userAddress);
+          const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
+          
+          // Benzersiz bir query ID oluştur - tamamen rastgele
+          const uniqueQueryId = Math.floor(Math.random() * 2**32);
+          
+          const jettonTransferMessage = createJettonTransferMessage({
+            amount: amountInNano,
+            toAddress: destinationAddress,
+            responseAddress: parsedUserAddress,
+            forwardAmount: toNano('0.000000001'), // 1 nanoton for notification
+            forwardPayload: commentPayload,
+            queryId: uniqueQueryId
+          });
+          
+          tx = {
+            validUntil: Math.floor(Date.now() / 1000) + 300, // 5 dakika geçerli
+            messages: [
+              {
+                address: USDT_ADDRESS,
+                amount: toNano('0.15').toString(), // 0.15 TON for fees
+                payload: jettonTransferMessage.toBoc().toString('base64')
+              }
+            ]
+          };
+          
+          console.log('Using standard method with payload:', jettonTransferMessage.toBoc().toString('base64'));
+        } 
+        else if (transferMethod === 'simplified') {
+          // Simplified method - using createSimplifiedJettonTransferRequest
+          tx = createSimplifiedJettonTransferRequest({
+            jettonMasterAddress: USDT_ADDRESS,
+            toAddress: address,
+            amount: amountInNano,
+            fromAddress: userAddress,
+            comment: `Payment ID: ${paymentId}`,
+            attachedAmount: toNano('0.2') // Increase attached TON amount
+          });
+          
+          console.log('Using simplified method with request:', tx);
+        }
+        else {
+          // Alternative method - using createAlternativeJettonTransferRequest
+          // Note: This requires knowing the user's Jetton wallet address
+          // For simplicity, we'll use the non-bounceable USDT address as a placeholder
+          tx = createAlternativeJettonTransferRequest({
+            jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE, // This should be the user's Jetton wallet address
+            toAddress: address,
+            amount: amountInNano,
+            fromAddress: userAddress,
+            comment: `Payment ID: ${paymentId}`,
+            attachedAmount: toNano('0.25') // Even more TON for fees
+          });
+          
+          console.log('Using alternative method with request:', tx);
+        }
+
+        console.log('Transaction sent, waiting for result...');
         const result = await tonConnectUi.sendTransaction(tx);
+        console.log('Transaction result:', result);
         setTxStatus('success');
         
         if (window.Telegram?.WebApp) {
@@ -204,14 +273,27 @@ export function TxForm() {
 
     } catch (error) {
       console.error('Transaction error:', error);
-      setTxStatus('error');
+      
+      // Hata detaylarını konsola yazdır
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        
+        // Kullanıcıya daha spesifik hata mesajı göster
+        setErrorMessage(error.message);
+        setTxStatus('error');
+      } else {
+        console.error('Unknown error type:', typeof error);
+        setErrorMessage('Unknown error occurred');
+        setTxStatus('error');
+      }
       
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.MainButton.setText('Payment Failed!');
         window.Telegram.WebApp.MainButton.show();
       }
     }
-  }, [address, amount, paymentId, comment, tonConnectUi, tokenType, wallet]);
+  }, [address, amount, paymentId, comment, tonConnectUi, tokenType, wallet, transferMethod]);
 
   // Transaction durumuna göre UI göster
   const renderStatus = () => {
@@ -221,7 +303,11 @@ export function TxForm() {
       case 'success':
         return <div className="tx-status success">Transaction successful!</div>;
       case 'error':
-        return <div className="tx-status error">Transaction failed. Please try again.</div>;
+        return (
+          <div className="tx-status error">
+            Transaction failed. {errorMessage && <span>Error: {errorMessage}</span>}
+          </div>
+        );
       default:
         return null;
     }
@@ -265,6 +351,21 @@ export function TxForm() {
             <option value="USDT">USDT</option>
           </select>
         </div>
+        
+        {tokenType === 'USDT' && (
+          <div className="input-group">
+            <label>Transfer Method:</label>
+            <select 
+              value={transferMethod} 
+              onChange={(e) => setTransferMethod(e.target.value as 'standard' | 'simplified' | 'alternative')}
+              disabled={txStatus === 'pending'}
+            >
+              <option value="standard">Standard</option>
+              <option value="simplified">Simplified</option>
+              <option value="alternative">Alternative</option>
+            </select>
+          </div>
+        )}
         
         <div className="input-group">
           <label>Amount:</label>
