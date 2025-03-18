@@ -1,14 +1,10 @@
 import { Address, beginCell, Cell, toNano } from "@ton/core";
 
 // USDT Jetton address on TON (bounceable format)
-export const USDT_ADDRESS = 'EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA';
+export const USDT_ADDRESS = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
 
 // USDT Jetton address on TON (non-bounceable format)
-export const USDT_ADDRESS_NON_BOUNCEABLE = 'UQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwivg';
-
-// Central wallet address for USDT operations
-// This should be a wallet that you control and can receive/send USDT
-export const CENTRAL_WALLET_ADDRESS = 'EQBKYXttVMGtY-whfnmxg7_c7Hv6TKnw9QfNbkGQ_p6lBD7a';
+export const USDT_ADDRESS_NON_BOUNCEABLE = 'UQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDY';
 
 // USDT has 6 decimals, unlike most Jettons which have 9
 export const USDT_DECIMALS = 6;
@@ -21,13 +17,6 @@ export const JettonOps = {
   EXCESSES: 0xd53276db,
   BURN: 0x595f07bc,
   BURN_NOTIFICATION: 0x7bdd97de
-};
-
-// Default gas amounts for different operations
-export const GasAmounts = {
-  JETTON_TRANSFER_STANDARD: toNano('0.5'),   // 0.5 TON for standard method
-  JETTON_TRANSFER_SIMPLIFIED: toNano('0.6'), // 0.6 TON for simplified method
-  JETTON_TRANSFER_ALTERNATIVE: toNano('0.7') // 0.7 TON for alternative method
 };
 
 /**
@@ -73,7 +62,7 @@ export function createJettonTransferMessage({
   amount,
   toAddress,
   responseAddress,
-  forwardAmount = toNano('0.000000001'), // Exactly 1 nanoton for notification as per TON standards
+  forwardAmount = toNano('0.000000001'), // 1 nanoton for notification
   forwardPayload = null,
   queryId = Math.floor(Math.random() * 2**64) // Completely random queryId
 }: {
@@ -86,9 +75,6 @@ export function createJettonTransferMessage({
 }): Cell {
   console.log(`Creating Jetton transfer with queryId: ${queryId}`);
   
-  // Ensure forwardAmount is exactly 1 nanoton as per TON standards
-  const standardForwardAmount = toNano('0.000000001');
-  
   let transferMessage = beginCell()
     .storeUint(JettonOps.TRANSFER, 32) // op::transfer
     .storeUint(queryId, 64) // query_id
@@ -96,7 +82,7 @@ export function createJettonTransferMessage({
     .storeAddress(toAddress) // destination
     .storeAddress(responseAddress) // response_destination
     .storeUint(0, 1) // no custom payload
-    .storeCoins(standardForwardAmount); // forward_ton_amount - exactly 1 nanoton
+    .storeCoins(forwardAmount); // forward_ton_amount
   
   if (forwardPayload) {
     transferMessage.storeUint(1, 1); // has forward payload
@@ -122,7 +108,7 @@ export function createCommentPayload(comment: string): Cell {
 }
 
 /**
- * Creates a simplified Jetton transfer request using central wallet
+ * Creates a simplified Jetton transfer request
  * This is a more direct approach that might work better with some wallets
  */
 export function createSimplifiedJettonTransferRequest({
@@ -131,8 +117,7 @@ export function createSimplifiedJettonTransferRequest({
   amount,
   fromAddress,
   comment = '',
-  attachedAmount = GasAmounts.JETTON_TRANSFER_SIMPLIFIED, // Arttırılmış gas
-  useCentralWallet = true
+  attachedAmount = toNano('0.15')
 }: {
   jettonMasterAddress: string;
   toAddress: string;
@@ -140,7 +125,6 @@ export function createSimplifiedJettonTransferRequest({
   fromAddress: string;
   comment?: string;
   attachedAmount?: bigint;
-  useCentralWallet?: boolean;
 }) {
   // Create a simple transfer request
   const commentCell = comment ? 
@@ -149,18 +133,6 @@ export function createSimplifiedJettonTransferRequest({
       .storeBuffer(Buffer.from(comment))
       .endCell() 
     : beginCell().endCell();
-
-  // Ensure forward amount is exactly 1 nanoton as per TON standards
-  const standardForwardAmount = toNano('0.000000001');
-  
-  // Generate a unique query ID for this transaction
-  const uniqueQueryId = Math.floor(Math.random() * 2**32);
-  console.log(`Creating simplified Jetton transfer with queryId: ${uniqueQueryId}`);
-
-  // Use central wallet address as response address if specified
-  const responseAddress = useCentralWallet ? 
-    Address.parse(CENTRAL_WALLET_ADDRESS) : 
-    Address.parse(fromAddress);
 
   return {
     validUntil: Math.floor(Date.now() / 1000) + 300, // 5 minutes
@@ -171,12 +143,12 @@ export function createSimplifiedJettonTransferRequest({
         stateInit: undefined,
         payload: beginCell()
           .storeUint(JettonOps.TRANSFER, 32) // op::transfer
-          .storeUint(uniqueQueryId, 64) // random query_id
+          .storeUint(Math.floor(Math.random() * 2**32), 64) // random query_id
           .storeCoins(amount) // amount
           .storeAddress(Address.parse(toAddress)) // destination
-          .storeAddress(responseAddress) // response_destination (central wallet or sender)
+          .storeAddress(Address.parse(fromAddress)) // response_destination
           .storeUint(0, 1) // no custom payload
-          .storeCoins(standardForwardAmount) // forward_ton_amount - exactly 1 nanoton
+          .storeCoins(toNano('0.000000001')) // forward_ton_amount (1 nanoton)
           .storeUint(comment ? 1 : 0, 1) // has forward payload?
           .storeRef(commentCell)
           .endCell()
@@ -197,7 +169,7 @@ export function createAlternativeJettonTransferRequest({
   amount,
   fromAddress,
   comment = '',
-  attachedAmount = GasAmounts.JETTON_TRANSFER_ALTERNATIVE // Arttırılmış gas
+  attachedAmount = toNano('0.15')
 }: {
   jettonWalletAddress: string;
   toAddress: string;
@@ -214,12 +186,6 @@ export function createAlternativeJettonTransferRequest({
       .endCell() 
     : beginCell().endCell();
 
-  // Generate a unique query ID for this transaction
-  const uniqueQueryId = Math.floor(Math.random() * 2**32);
-  console.log(`Creating alternative Jetton transfer with queryId: ${uniqueQueryId}`);
-
-  // According to TON standards, we should use the JettonOps.TRANSFER opcode
-  // and follow the standard Jetton transfer message structure
   return {
     validUntil: Math.floor(Date.now() / 1000) + 300, // 5 minutes
     messages: [
@@ -227,14 +193,10 @@ export function createAlternativeJettonTransferRequest({
         address: jettonWalletAddress,
         amount: attachedAmount.toString(),
         payload: beginCell()
-          .storeUint(JettonOps.TRANSFER, 32) // op::transfer
-          .storeUint(uniqueQueryId, 64) // query_id
-          .storeCoins(amount) // amount
-          .storeAddress(Address.parse(toAddress)) // destination
-          .storeAddress(Address.parse(fromAddress)) // response_destination
-          .storeUint(0, 1) // no custom payload
-          .storeCoins(toNano('0.000000001')) // forward_ton_amount - exactly 1 nanoton
-          .storeUint(comment ? 1 : 0, 1) // has forward payload?
+          .storeUint(0x18, 6) // external message info
+          .storeAddress(Address.parse(toAddress))
+          .storeCoins(amount)
+          .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
           .storeRef(commentCell)
           .endCell()
           .toBoc()
@@ -246,7 +208,7 @@ export function createAlternativeJettonTransferRequest({
 
 /**
  * Calculates the standard Jetton wallet address for a given owner and Jetton master
- * This implementation follows the standard Jetton wallet address calculation
+ * Note: This is a simplified version and might not work for all Jetton implementations
  * 
  * @param ownerAddress Owner wallet address
  * @param jettonMasterAddress Jetton master contract address
@@ -255,45 +217,23 @@ export function createAlternativeJettonTransferRequest({
 export function predictJettonWalletAddress(
   ownerAddress: Address,
   jettonMasterAddress: Address
-): Address {
-  try {
-    // Doğrudan merkezi cüzdan adresini kullan - bu en güvenilir yaklaşım
-    return Address.parse(CENTRAL_WALLET_ADDRESS);
-  } catch (error) {
-    console.error('Error parsing central wallet address, using fallback calculation:', error);
-    
-    // Fallback hesaplama - ilk deneme başarısız olursa
-    const data = beginCell()
-      .storeCoins(0)
-      .storeAddress(ownerAddress)
-      .storeAddress(jettonMasterAddress)
-      .storeUint(0, 1)
-      .endCell();
-    
-    const stateInitHash = beginCell()
-      .storeUint(0, 2)
-      .storeBit(1)
-      .storeRef(beginCell().endCell())
-      .storeBit(1)
-      .storeRef(data)
-      .storeBit(0)
-      .endCell()
-      .hash();
-    
-    return new Address(0, stateInitHash);
-  }
+): string {
+  // This is a simplified implementation
+  // In a production app, you should query the Jetton master contract
+  // or use an indexer to get the actual Jetton wallet address
+  
+  // For demonstration purposes only
+  return `Predicted Jetton wallet for ${ownerAddress.toString()} and ${jettonMasterAddress.toString()}`;
 }
 
 /**
  * Formats an amount from nanotons to a human-readable format
  * 
  * @param amount Amount in nanotons
- * @param decimals Number of decimals (9 for TON, 6 for USDT)
+ * @param decimals Number of decimals (9 for TON and most Jettons)
  * @returns Formatted amount string
  */
-export function formatAmount(amount: string | number | bigint, tokenType: 'TON' | 'USDT' = 'TON'): string {
-  const decimals = tokenType === 'USDT' ? USDT_DECIMALS : 9;
-  
+export function formatAmount(amount: string | number | bigint, decimals: number = 9): string {
   const amountNum = typeof amount === 'bigint' 
     ? Number(amount) / Math.pow(10, decimals)
     : Number(amount) / Math.pow(10, decimals);

@@ -6,8 +6,6 @@ import {
   USDT_ADDRESS, 
   USDT_ADDRESS_NON_BOUNCEABLE,
   USDT_DECIMALS,
-  CENTRAL_WALLET_ADDRESS,
-  GasAmounts,
   createJettonTransferMessage, 
   createCommentPayload, 
   formatAmount,
@@ -44,7 +42,7 @@ export function TxForm() {
   const [tonConnectUi] = useTonConnectUI();
   const [comment, setComment] = useState('');
   const [tokenType, setTokenType] = useState<'TON' | 'USDT'>('TON');
-  const [transferMethod, setTransferMethod] = useState<'standard' | 'simplified' | 'alternative'>('standard');
+  const [transferMethod, setTransferMethod] = useState<'standard' | 'simplified' | 'alternative'>('simplified');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -205,8 +203,6 @@ export function TxForm() {
         if (transferMethod === 'standard') {
           // Standard method - using createJettonTransferMessage
           const parsedUserAddress = Address.parse(userAddress);
-          // Use central wallet address for response
-          const responseAddress = Address.parse(CENTRAL_WALLET_ADDRESS);
           const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
           
           // Benzersiz bir query ID oluştur - tamamen rastgele
@@ -215,8 +211,8 @@ export function TxForm() {
           const jettonTransferMessage = createJettonTransferMessage({
             amount: amountInNano,
             toAddress: destinationAddress,
-            responseAddress: responseAddress, // Using central wallet address
-            forwardAmount: toNano('0.000000001'), // Exactly 1 nanoton for notification
+            responseAddress: parsedUserAddress,
+            forwardAmount: toNano('0.000000001'), // 1 nanoton for notification
             forwardPayload: commentPayload,
             queryId: uniqueQueryId
           });
@@ -226,7 +222,7 @@ export function TxForm() {
             messages: [
               {
                 address: USDT_ADDRESS,
-                amount: GasAmounts.JETTON_TRANSFER_STANDARD.toString(), // Daha yüksek gas
+                amount: toNano('0.15').toString(), // 0.15 TON for fees
                 payload: jettonTransferMessage.toBoc().toString('base64')
               }
             ]
@@ -242,24 +238,46 @@ export function TxForm() {
             amount: amountInNano,
             fromAddress: userAddress,
             comment: `Payment ID: ${paymentId}`,
-            attachedAmount: toNano('0.35') // Increase attached TON amount
+            attachedAmount: toNano('0.2') // Increase attached TON amount
           });
           
           console.log('Using simplified method with request:', tx);
         }
         else if (transferMethod === 'alternative') {
           // Alternative method - using createAlternativeJettonTransferRequest
-          // Use central wallet address for transfers
-          console.log('Using central wallet address for transfer:', CENTRAL_WALLET_ADDRESS);
+          // Calculate the user's Jetton wallet address
+          const parsedUserAddress = Address.parse(userAddress);
+          const parsedJettonMasterAddress = Address.parse(USDT_ADDRESS);
           
-          tx = createAlternativeJettonTransferRequest({
-            jettonWalletAddress: CENTRAL_WALLET_ADDRESS,
-            toAddress: address,
-            amount: amountInNano,
-            fromAddress: userAddress,
-            comment: `Payment ID: ${paymentId}`,
-            attachedAmount: toNano('0.4') // Increase to 0.4 TON for fees
-          });
+          // Try to predict the user's Jetton wallet address
+          try {
+            const jettonWalletAddress = predictJettonWalletAddress(
+              parsedUserAddress,
+              parsedJettonMasterAddress
+            );
+            
+            console.log('Predicted Jetton wallet address:', jettonWalletAddress);
+            
+            tx = createAlternativeJettonTransferRequest({
+              jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE,
+              toAddress: address,
+              amount: amountInNano,
+              fromAddress: userAddress,
+              comment: `Payment ID: ${paymentId}`,
+              attachedAmount: toNano('0.25') // Even more TON for fees
+            });
+          } catch (error) {
+            console.error('Error predicting Jetton wallet address:', error);
+            // Fallback to using the non-bounceable USDT address
+            tx = createAlternativeJettonTransferRequest({
+              jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE,
+              toAddress: address,
+              amount: amountInNano,
+              fromAddress: userAddress,
+              comment: `Payment ID: ${paymentId}`,
+              attachedAmount: toNano('0.25') // Even more TON for fees
+            });
+          }
           
           console.log('Using alternative method with request:', tx);
         }
@@ -268,15 +286,13 @@ export function TxForm() {
           console.warn('Unknown transfer method, defaulting to standard');
           
           const parsedUserAddress = Address.parse(userAddress);
-          // Use central wallet address for response
-          const responseAddress = Address.parse(CENTRAL_WALLET_ADDRESS);
           const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
           const uniqueQueryId = Math.floor(Math.random() * 2**32);
           
           const jettonTransferMessage = createJettonTransferMessage({
             amount: amountInNano,
             toAddress: destinationAddress,
-            responseAddress: responseAddress, // Using central wallet address
+            responseAddress: parsedUserAddress,
             forwardAmount: toNano('0.000000001'),
             forwardPayload: commentPayload,
             queryId: uniqueQueryId
@@ -287,7 +303,7 @@ export function TxForm() {
             messages: [
               {
                 address: USDT_ADDRESS,
-                amount: GasAmounts.JETTON_TRANSFER_STANDARD.toString(),
+                amount: toNano('0.15').toString(),
                 payload: jettonTransferMessage.toBoc().toString('base64')
               }
             ]
@@ -320,45 +336,11 @@ export function TxForm() {
         console.error('Error stack:', error.stack);
         
         // Kullanıcıya daha spesifik hata mesajı göster
-        let errorMsg = error.message;
-        
-        // Yaygın hata mesajlarını daha anlaşılır hale getir
-        if (errorMsg.includes('unable to verify transaction')) {
-          errorMsg = 'Unable to verify transaction. This could be due to insufficient TON balance or an issue with the transaction structure.';
-          
-          // Daha fazla debug bilgisi ekle
-          console.error('Debug info for "unable to verify transaction" error:');
-          console.error('- Token type:', tokenType);
-          console.error('- Transfer method:', transferMethod);
-          console.error('- Amount:', amount);
-          console.error('- Destination address:', address);
-          console.error('- USDT address being used:', USDT_ADDRESS);
-          console.error('- Central wallet address:', CENTRAL_WALLET_ADDRESS);
-          console.error('- Gas amount used:', 
-            transferMethod === 'standard' ? GasAmounts.JETTON_TRANSFER_STANDARD.toString() :
-            transferMethod === 'simplified' ? GasAmounts.JETTON_TRANSFER_SIMPLIFIED.toString() :
-            GasAmounts.JETTON_TRANSFER_ALTERNATIVE.toString()
-          );
-          
-          // Kullanıcıya öneriler sun
-          errorMsg += ' Try the following solutions:\n';
-          errorMsg += '1. Make sure you have enough TON to cover transaction fees\n';
-          errorMsg += '2. Try a different transfer method (simplified or alternative)\n';
-          errorMsg += '3. Check that the recipient address is correct\n';
-          errorMsg += '4. Wait a few minutes and try again';
-        } else if (errorMsg.includes('insufficient funds')) {
-          errorMsg = 'Insufficient funds. Please make sure you have enough TON to cover the transaction fees.';
-        } else if (errorMsg.includes('invalid address')) {
-          errorMsg = 'Invalid address. Please check the recipient address format.';
-        } else if (errorMsg.includes('rejected')) {
-          errorMsg = 'Transaction rejected by wallet. Please try again or use a different transfer method.';
-        }
-        
-        setErrorMessage(errorMsg);
+        setErrorMessage(error.message);
         setTxStatus('error');
       } else {
         console.error('Unknown error type:', typeof error);
-        setErrorMessage('Unknown error occurred. Please check the console for more details.');
+        setErrorMessage('Unknown error occurred');
         setTxStatus('error');
       }
       
@@ -391,7 +373,7 @@ export function TxForm() {
   const getFormattedAmount = () => {
     if (!amount) return '0';
     
-    const formattedAmount = formatAmount(amount, tokenType);
+    const formattedAmount = formatAmount(amount);
     return tokenType === 'TON' 
       ? `${formattedAmount} TON` 
       : `${formattedAmount} USDT`;
