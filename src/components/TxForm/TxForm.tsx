@@ -8,6 +8,14 @@ import {
   createCommentPayload, 
   formatAmount
 } from '../../utils/jetton-utils';
+import { getJettonWalletAddress, waitForTx } from '../../utils/tonapi';
+import {
+  GAS_AMOUNTS,
+  ERROR_MESSAGES,
+  DEFAULT_QUERY_ID,
+  DEFAULT_PAYMENT_ADDRESS,
+  TRANSACTION_TIMEOUT
+} from '../../utils/constants';
 
 interface PaymentData {
   amount: string;
@@ -50,9 +58,6 @@ const isValidTonAddress = (address: string): boolean => {
     return false;
   }
 };
-
-// Ödenecek adres olarak kullanılacak adres
-const DEFAULT_PAYMENT_ADDRESS = 'UQAd8xtxtEo68nYoGjJHomatf35zPmo8pGxwmkj58U_vbIx8';
 
 export function TxForm() {
   const [amount, setAmount] = useState('');
@@ -136,91 +141,178 @@ export function TxForm() {
       const amountInNano = BigInt(amount);
       
       if (tokenType === 'USDT') {
-        // USDT transferi için GitHub örneğindeki direct method
-        // GitHub reposundaki örnek transferi uygula
-        /*
-        transfer#0x0f8a7ea5
-        query_id:uint64
-        amount:VarUInteger 16
-        destination:MsgAddress
-        response_destination:MsgAddress
-        custom_payload:Maybe ^Cell
-        forward_ton_amount:VarUInteger 16
-        forward_payload:Either Cell ^Cell = InternalMsgBody
-        */
-        const payload = beginCell()
-          .storeUint(0x0f8a7ea5, 32) // op code for Jetton transfer
-          .storeUint(0, 64) // query_id
-          .storeCoins(amountInNano) // amount to transfer
-          .storeAddress(destinationAddress) // destination address
-          .storeAddress(Address.parse(userAddress)) // response address (your wallet)
-          .storeMaybeRef() // custom_payload - null
-          .storeCoins(toNano('0.1')) // forward_ton_amount - 0.1 TON (artırıldı)
-          .storeBit(true) // forward_payload is a cell reference
-          .storeRef(
-            beginCell()
-              .storeUint(0, 32) // comment prefix
-              .storeBuffer(Buffer.from(`Payment ID: ${paymentId}`))
-              .endCell()
-          )
-          .endCell().toBoc().toString('base64');
-        
-        // GitHub örneğinde olduğu gibi tx oluştur
-        const tx: SendTransactionRequest = {
-          validUntil: Math.round(Date.now() / 1000) + 60 * 5, // 5 minutes
-          messages: [
-            {
-              address: USDT_ADDRESS, // Jetton master contract
-              amount: toNano('0.5').toString(), // 0.5 TON for gas (artırıldı)
-              payload
-            }
-          ]
-        };
-        
-        console.log('USDT transfer with method from GitHub example:', {
-          from: userAddress,
-          to: address,
-          amount: amountInNano.toString(),
-          payload,
-          gasAmount: tx.messages[0].amount,
-          forwardAmount: toNano('0.1').toString()
-        });
-        
-        // TonConnect UI'ın transaction davranışını ayarlayan seçenekler
-        // modals: 'all' - tüm modalleri (before, success, error) gösterir
-        // notifications: ['error', 'success'] - hata ve başarı bildirimlerini gösterir
-        // TonConnect dokümantasyonu: https://docs.ton.org/develop/dapps/ton-connect
-        const sendOptions: ActionConfiguration = {
-          modals: 'all',
-          notifications: ['error', 'success']
-        };
-        
-        // Ek seçeneklerle sendTransaction (GitHub örneğinde olduğu gibi)
-        const result = await tonConnectUi.sendTransaction(tx, sendOptions);
-        
-        // Cevabı işle
-        console.log('Transaction result:', result);
-        
-        // Transaction hash oluştur (GitHub örneğindeki gibi)
         try {
-          const imMsgCell = Cell.fromBase64(result.boc);
-          const inMsgHash = imMsgCell.hash().toString('hex');
-          console.log('Transaction hash:', inMsgHash);
+          // GitHub örneğindeki gibi, kullanıcının USDT jetton cüzdan adresini almaya çalış
+          // Bu, kullanıcının henüz USDT jetton'ı yoksa hata verebilir
+          const jettonWalletAddress = await getJettonWalletAddress(USDT_ADDRESS, userAddress);
+          console.log('Using jetton wallet address:', jettonWalletAddress);
+          
+          // USDT transferi için GitHub örneğindeki direct method
+          // GitHub reposundaki örnek transferi uygula
+          /*
+          transfer#0x0f8a7ea5
+          query_id:uint64
+          amount:VarUInteger 16
+          destination:MsgAddress
+          response_destination:MsgAddress
+          custom_payload:Maybe ^Cell
+          forward_ton_amount:VarUInteger 16
+          forward_payload:Either Cell ^Cell = InternalMsgBody
+          */
+          const payload = beginCell()
+            .storeUint(0x0f8a7ea5, 32) // op code for Jetton transfer
+            .storeUint(DEFAULT_QUERY_ID, 64) // query_id (sabit değer)
+            .storeCoins(amountInNano) // amount to transfer
+            .storeAddress(destinationAddress) // destination address
+            .storeAddress(Address.parse(userAddress)) // response address (your wallet)
+            .storeMaybeRef() // custom_payload - null
+            .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT)) // forward_ton_amount
+            .storeBit(true) // forward_payload is a cell reference
+            .storeRef(
+              beginCell()
+                .storeUint(0, 32) // comment prefix
+                .storeBuffer(Buffer.from(`Payment ID: ${paymentId}`))
+                .endCell()
+            )
+            .endCell().toBoc().toString('base64');
+          
+          // GitHub örneğinde olduğu gibi tx oluştur, ancak hedef adres olarak USDT_ADDRESS yerine
+          // kullanıcının jetton cüzdan adresini kullan
+          const tx: SendTransactionRequest = {
+            validUntil: Math.round(Date.now() / 1000) + TRANSACTION_TIMEOUT, // Sabit değer
+            messages: [
+              {
+                address: jettonWalletAddress, // Kullanıcı Jetton cüzdan adresi
+                amount: toNano(GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(), // Sabit değer
+                payload
+              }
+            ]
+          };
+          
+          console.log('USDT transfer with method from GitHub example:', {
+            from: userAddress,
+            to: address,
+            jettonWalletAddress,
+            amount: amountInNano.toString(),
+            payload,
+            gasAmount: tx.messages[0].amount,
+            forwardAmount: toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT).toString()
+          });
+          
+          // TonConnect UI'ın transaction davranışını ayarlayan seçenekler
+          const sendOptions: ActionConfiguration = {
+            modals: 'all',
+            notifications: ['error', 'success']
+          };
+          
+          // Ek seçeneklerle sendTransaction (GitHub örneğinde olduğu gibi)
+          const result = await tonConnectUi.sendTransaction(tx, sendOptions);
+          
+          // Cevabı işle
+          console.log('Transaction result:', result);
+          
+          // Transaction hash oluştur (GitHub örneğindeki gibi)
+          try {
+            const imMsgCell = Cell.fromBase64(result.boc);
+            const inMsgHash = imMsgCell.hash().toString('hex');
+            console.log('Transaction hash:', inMsgHash);
+            
+            // İşlemi izle - GitHub örneğindeki waitForTx fonksiyonunu kullan
+            try {
+              console.log('Waiting for transaction to complete...');
+              const txInfo = await waitForTx(inMsgHash);
+              console.log('Transaction completed:', txInfo);
+            } catch (e) {
+              console.error('Error waiting for transaction:', e);
+            }
+          } catch (e) {
+            console.error('Error extracting transaction hash:', e);
+          }
+          
+          setTxStatus('success');
+          
+          if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.MainButton.setText('Payment Successful!');
+            window.Telegram.WebApp.MainButton.show();
+            window.Telegram.WebApp.sendData(JSON.stringify({
+              status: 'success',
+              token: 'USDT',
+              payment_id: paymentId,
+              tx_hash: result.boc
+            }));
+          }
         } catch (e) {
-          console.error('Error extracting transaction hash:', e);
-        }
-        
-        setTxStatus('success');
-        
-        if (window.Telegram?.WebApp) {
-          window.Telegram.WebApp.MainButton.setText('Payment Successful!');
-          window.Telegram.WebApp.MainButton.show();
-          window.Telegram.WebApp.sendData(JSON.stringify({
-            status: 'success',
-            token: 'USDT',
-            payment_id: paymentId,
-            tx_hash: result.boc
-          }));
+          console.error('Error in USDT transfer using jetton wallet address:', e);
+          
+          // Jetton cüzdan adresi alınamadıysa veya başka bir hata olduysa, 
+          // yedek olarak eski yöntemi kullan
+          console.log('Falling back to direct USDT master contract transfer...');
+          
+          // Eski yöntem - doğrudan USDT master kontrat adresine gönder
+          const payload = beginCell()
+            .storeUint(0x0f8a7ea5, 32)
+            .storeUint(DEFAULT_QUERY_ID, 64)
+            .storeCoins(amountInNano)
+            .storeAddress(destinationAddress)
+            .storeAddress(Address.parse(userAddress))
+            .storeMaybeRef()
+            .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT))
+            .storeBit(true)
+            .storeRef(
+              beginCell()
+                .storeUint(0, 32)
+                .storeBuffer(Buffer.from(`Payment ID: ${paymentId}`))
+                .endCell()
+            )
+            .endCell().toBoc().toString('base64');
+          
+          const tx: SendTransactionRequest = {
+            validUntil: Math.round(Date.now() / 1000) + TRANSACTION_TIMEOUT,
+            messages: [
+              {
+                address: USDT_ADDRESS,
+                amount: toNano(GAS_AMOUNTS.JETTON_TRANSFER_FALLBACK).toString(),
+                payload
+              }
+            ]
+          };
+          
+          console.log('Fallback USDT transfer with direct method:', {
+            from: userAddress,
+            to: address,
+            amount: amountInNano.toString(),
+            payload,
+            gasAmount: tx.messages[0].amount
+          });
+          
+          const sendOptions: ActionConfiguration = {
+            modals: 'all',
+            notifications: ['error', 'success']
+          };
+          
+          const result = await tonConnectUi.sendTransaction(tx, sendOptions);
+          console.log('Transaction result (fallback):', result);
+          
+          try {
+            const imMsgCell = Cell.fromBase64(result.boc);
+            const inMsgHash = imMsgCell.hash().toString('hex');
+            console.log('Transaction hash (fallback):', inMsgHash);
+          } catch (e) {
+            console.error('Error extracting transaction hash (fallback):', e);
+          }
+          
+          setTxStatus('success');
+          
+          if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.MainButton.setText('Payment Successful!');
+            window.Telegram.WebApp.MainButton.show();
+            window.Telegram.WebApp.sendData(JSON.stringify({
+              status: 'success',
+              token: 'USDT',
+              payment_id: paymentId,
+              tx_hash: result.boc
+            }));
+          }
         }
       } else if (tokenType === 'TON') {
         // Native TON transfer
@@ -246,7 +338,7 @@ export function TxForm() {
           .endCell();
 
         const tx: SendTransactionRequest = {
-          validUntil: Math.floor(Date.now() / 1000) + 300, // 5 dakika geçerli
+          validUntil: Math.floor(Date.now() / 1000) + TRANSACTION_TIMEOUT, // Sabit değer
           messages: [
             {
               address: address,
@@ -275,6 +367,15 @@ export function TxForm() {
           const imMsgCell = Cell.fromBase64(result.boc);
           const inMsgHash = imMsgCell.hash().toString('hex');
           console.log('TON transaction hash:', inMsgHash);
+          
+          // İşlemi izle - GitHub örneğindeki waitForTx fonksiyonunu kullan
+          try {
+            console.log('Waiting for TON transaction to complete...');
+            const txInfo = await waitForTx(inMsgHash);
+            console.log('TON transaction completed:', txInfo);
+          } catch (e) {
+            console.error('Error waiting for TON transaction:', e);
+          }
         } catch (e) {
           console.error('Error extracting TON transaction hash:', e);
         }
@@ -299,16 +400,16 @@ export function TxForm() {
         let errorMsg = error.message;
         
         if (errorMsg.includes('unable to verify transaction')) {
-          errorMsg = 'Unable to verify transaction. Gas miktarı yetersiz kalmış olabilir. Lütfen tekrar deneyin veya cüzdan uygulamanızda işlemi onaylayın.';
+          errorMsg = ERROR_MESSAGES.UNABLE_TO_VERIFY;
           console.error('Transaction verification error details:', error);
         } else if (errorMsg.includes('invalid address')) {
-          errorMsg = 'Invalid address format: ' + address;
+          errorMsg = ERROR_MESSAGES.INVALID_ADDRESS + ' ' + address;
         } else if (errorMsg.includes('rejected')) {
-          errorMsg = 'Transaction rejected by wallet.';
+          errorMsg = ERROR_MESSAGES.REJECTED;
         } else if (errorMsg.includes('timeout')) {
-          errorMsg = 'Transaction timed out. Please try again.';
+          errorMsg = ERROR_MESSAGES.TIMEOUT;
         } else if (errorMsg.includes('error code 709')) {
-          errorMsg = 'Error 709: Gas fees for transaction not sufficient. Try increasing the fee.';
+          errorMsg = ERROR_MESSAGES.ERROR_709;
         }
         
         setErrorMessage(errorMsg);

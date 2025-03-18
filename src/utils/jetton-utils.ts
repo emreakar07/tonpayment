@@ -20,6 +20,38 @@ export const JettonOps = {
 };
 
 /**
+ * Jetton cüzdan adresini almak için TON API çağrısı (async)
+ * Bu fonksiyon jetton master adresi ve kullanıcı cüzdanı için jetton cüzdan adresini döndürür
+ * 
+ * @param jettonMasterAddress Jetton master kontrat adresi
+ * @param ownerAddress Kullanıcının TON cüzdan adresi
+ * @returns Jetton cüzdan adresi (string)
+ */
+export async function getJettonWalletAddress(jettonMasterAddress: string, ownerAddress: string): Promise<string> {
+  try {
+    // Bu fonksiyon gerçek bir TON API kullanmalı, ancak şimdilik örnek bir implementasyon
+    // Gerçek uygulamada, bir TON API servisine yapılacak bir çağrı olmalı
+    
+    // Not: Gerçek implementasyon için, TON API'ya bir çağrı yapmanız gerekir
+    // Örnek: tonapi.io, toncenter.com gibi servisler kullanılabilir
+    
+    // Bu, sadece bir örnek fonksiyondur, gerçek implementasyon farklı olacaktır
+    console.log(`Trying to get jetton wallet address for ${ownerAddress} for jetton ${jettonMasterAddress}`);
+    
+    // TODO: Burada gerçek TON API çağrısını implementasyonu gerekiyor
+    // const response = await fetch(`https://tonapi.io/v2/jetton/wallets/${jettonMasterAddress}/${ownerAddress}`);
+    // const data = await response.json();
+    // return data.address;
+    
+    // Şimdilik, sadece demo olarak doğrudan master adresi döndürelim
+    return jettonMasterAddress;
+  } catch (error) {
+    console.error('Error getting jetton wallet address:', error);
+    throw new Error('Failed to get jetton wallet address');
+  }
+}
+
+/**
  * Creates a simple TON transfer message
  * 
  * @param params Transfer parameters
