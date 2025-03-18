@@ -355,7 +355,7 @@ export function TxForm() {
           messages: [
             {
               address: USDT_ADDRESS, // Jetton master contract
-              amount: toNano('0.2').toString(), // 0.3 TON for gas
+              amount: toNano('0.3').toString(), // 0.3 TON for gas
               payload
             }
           ]
