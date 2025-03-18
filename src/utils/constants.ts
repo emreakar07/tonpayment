@@ -6,9 +6,9 @@
 import { Address } from '@ton/core';
 
 // USDT Jetton constants
+// Telegram Wallet'ta kullanılan resmi TON USDT adresi 
 // GitHub örneğinde kullanılan adres: EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA
-// Bizim mevcut adresimiz: EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs
-// Her iki adres de mainnet USDT adresleri olarak görünüyor, kendi adresimizi tutuyoruz
+// Bizim mevcut adresimiz: EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs 
 export const USDT = Address.parse('EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs');
 export const USDT_DECIMALS = 6;
 
@@ -17,20 +17,21 @@ export const USDT_ALTERNATIVE = Address.parse('EQBynBO23ywHy_CgarY9NK9FTz0yDsG82
 
 // Gas constants for different operations
 export const GAS_AMOUNTS = {
-  TON_TRANSFER: '0.01', // Basit TON transferi için gas
-  JETTON_TRANSFER: '0.05', // Jetton transferi için minimum gas
-  JETTON_TRANSFER_WITH_COMMENT: '0.5', // Yorumlu Jetton transferi için önerilen gas
-  FORWARD_TON_AMOUNT: '0.1', // Jetton transferinde forward_ton_amount için önerilen değer
-  JETTON_TRANSFER_FALLBACK: '0.5' // Jetton transferi başarısız olduğunda kullanılacak gas
+  TON_TRANSFER: '0.01',          // Basit TON transferi için gas
+  JETTON_TRANSFER: '0.05',       // Jetton transferi için minimum gas
+  JETTON_TRANSFER_WITH_COMMENT: '0.6',  // Yorumlu Jetton transferi için önerilen gas (artırıldı)
+  FORWARD_TON_AMOUNT: '0.2',     // Jetton transferinde forward_ton_amount için önerilen değer (artırıldı)
+  JETTON_TRANSFER_FALLBACK: '0.8' // Jetton transferi başarısız olduğunda kullanılacak gas (artırıldı)
 };
 
 // Errors messages
 export const ERROR_MESSAGES = {
-  UNABLE_TO_VERIFY: 'Unable to verify transaction. Gas miktarı yetersiz kalmış olabilir.',
+  UNABLE_TO_VERIFY: 'Unable to verify transaction. Lütfen cüzdan uygulamanızda işlemi onaylayın ve daha fazla TON bakiyesi olduğundan emin olun.',
   INVALID_ADDRESS: 'Invalid TON address format:',
   REJECTED: 'Transaction rejected by wallet.',
   TIMEOUT: 'Transaction timed out. Please try again.',
   ERROR_709: 'Error 709: Gas fees for transaction not sufficient. Try increasing the fee.',
+  JETTON_WALLET_NOT_FOUND: 'USDT cüzdan adresi bulunamadı. Bu, USDT token\'larına sahip olmadığınız anlamına gelebilir. Direkt transfer yöntemi deneniyor.',
   UNKNOWN: 'Unknown error occurred during transfer'
 };
 
