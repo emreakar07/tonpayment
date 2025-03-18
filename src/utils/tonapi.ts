@@ -54,7 +54,9 @@ export async function getTx(hash: string): Promise<any> {
 }
 
 /**
- * Jetton cüzdan adresini almak için fonksiyon
+ * GitHub örneğindeki gibi, jetton cüzdan adresini almak için fonksiyon
+ * GitHub ton-connect-demo-dapp/src/tonapi.ts dosyasına benzer şekilde
+ * implementasyon yapılmıştır
  * 
  * @param jettonMasterAddress Jetton master kontrat adresi
  * @param ownerAddress Kullanıcının TON cüzdan adresi
@@ -62,19 +64,31 @@ export async function getTx(hash: string): Promise<any> {
  */
 export async function getJettonWalletAddress(jettonMasterAddress: string, ownerAddress: string): Promise<string> {
   try {
-    const response = await fetch(`${API_URL}/accounts/${ownerAddress}/jettons/${jettonMasterAddress}`);
+    // GitHub örneğindeki gibi execute_get_method kullanarak jetton wallet adresini al
+    const response = await fetch(`${API_URL}/blockchain/accounts/${jettonMasterAddress}/methods/get_wallet_address`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        args: [
+          `0x${ownerAddress}`
+        ]
+      })
+    });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`Failed to get jetton wallet address: ${errorText}`);
     }
-    
+
     const data = await response.json();
     
-    // Eğer API jetton cüzdan adresi dönmezse, hatayı yönetme
-    if (!data.wallet?.address) {
-      throw new Error('Jetton wallet address not found');
+    if (!data.decoded?.jetton_wallet_address) {
+      throw new Error('Jetton wallet address not found in response');
     }
     
-    return data.wallet.address;
+    return data.decoded.jetton_wallet_address;
   } catch (e) {
     console.error('Error getting jetton wallet address:', e);
     throw e;

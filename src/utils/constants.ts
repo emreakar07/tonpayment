@@ -6,8 +6,14 @@
 import { Address } from '@ton/core';
 
 // USDT Jetton constants
+// GitHub örneğinde kullanılan adres: EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA
+// Bizim mevcut adresimiz: EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs
+// Her iki adres de mainnet USDT adresleri olarak görünüyor, kendi adresimizi tutuyoruz
 export const USDT = Address.parse('EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs');
 export const USDT_DECIMALS = 6;
+
+// Alternative USDT address from GitHub example (in case our address doesn't work)
+export const USDT_ALTERNATIVE = Address.parse('EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA');
 
 // Gas constants for different operations
 export const GAS_AMOUNTS = {
