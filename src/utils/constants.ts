@@ -18,10 +18,10 @@ export const USDT_ALTERNATIVE = Address.parse('EQBynBO23ywHy_CgarY9NK9FTz0yDsG82
 // Gas constants for different operations
 export const GAS_AMOUNTS = {
   TON_TRANSFER: '0.01',          // Basit TON transferi için gas
-  JETTON_TRANSFER: '0.05',       // Jetton transferi için minimum gas
-  JETTON_TRANSFER_WITH_COMMENT: '0.6',  // Yorumlu Jetton transferi için önerilen gas (artırıldı)
-  FORWARD_TON_AMOUNT: '0.2',     // Jetton transferinde forward_ton_amount için önerilen değer (artırıldı)
-  JETTON_TRANSFER_FALLBACK: '0.8' // Jetton transferi başarısız olduğunda kullanılacak gas (artırıldı)
+  JETTON_TRANSFER: '0.05',       // Basit Jetton transferi için minimum gas
+  JETTON_TRANSFER_WITH_COMMENT: '0.65',  // Yorumlu Jetton transferi için önerilen gas (artırıldı)
+  FORWARD_TON_AMOUNT: '0.25',     // Jetton transferinde forward_ton_amount için önerilen değer (artırıldı)
+  JETTON_TRANSFER_FALLBACK: '0.9' // Jetton transferi başarısız olduğunda kullanılacak gas (artırıldı)
 };
 
 // Errors messages

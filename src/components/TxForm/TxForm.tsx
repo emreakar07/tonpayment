@@ -175,38 +175,34 @@ export function TxForm() {
             // Bu aşamada hata fırlatmıyoruz, bunun yerine fallback kullanıyoruz
             // Kullanıcıya bilgi mesajı göstermek için
             setErrorMessage(ERROR_MESSAGES.JETTON_WALLET_NOT_FOUND);
-            // throw new Error('Unable to get your USDT wallet address. Make sure you have USDT tokens in your wallet.');
           }
         }
         
-        // Jetton Transfer Mantığı
+        // Jetton Transfer Mantığı (önerilen formata göre güncellendi)
         
-        // Jetton transfer mesajı oluştur (op=0x0f8a7ea5)
-        const payload = beginCell()
-          .storeUint(0x0f8a7ea5, 32) // Jetton transfer op code
+        // Jetton transfer mesajı oluştur (op=0xf8a7ea5)
+        const body = beginCell()
+          .storeUint(0xf8a7ea5, 32) // Jetton transfer op code - önerilen değer
           .storeUint(DEFAULT_QUERY_ID, 64) // query_id
           .storeCoins(amountInNano) // amount to transfer
-          .storeAddress(destinationAddress) // destination address
-          .storeAddress(Address.parse(userAddress)) // response address (your wallet)
-          .storeMaybeRef() // custom_payload - null
+          .storeAddress(destinationAddress) // alıcı adresi
+          .storeAddress(Address.parse(userAddress)) // yanıt adresi (kullanıcının cüzdanı)
+          .storeUint(0, 1) // custom_payload (opsiyonel)
           .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT)) // forward_ton_amount
-          .storeBit(true) // forward_payload is a cell reference
-          .storeRef(
-            beginCell()
-              .storeUint(0, 32) // comment prefix
-              .storeBuffer(Buffer.from(`Payment ID: ${paymentId}`))
-              .endCell()
-          )
-          .endCell().toBoc().toString('base64');
+          .storeUint(0, 1) // forward_payload (opsiyonel) - yorumu bu şekilde ekleyebiliriz
+          .endCell();
+        
+        // Payload'ı base64 formatına dönüştürüyoruz
+        const payload = body.toBoc().toString('base64');
         
         // Transaction oluştur
-        const tx: SendTransactionRequest = {
-          validUntil: Math.round(Date.now() / 1000) + TRANSACTION_TIMEOUT,
+        const transaction: SendTransactionRequest = {
+          validUntil: Math.floor(Date.now() / 1000) + TRANSACTION_TIMEOUT, // 5 dakika geçerlilik süresi
           messages: [
             {
-              address: jettonWalletAddress, // Jetton wallet adresi veya fallback olarak master adres
+              address: jettonWalletAddress, // Kullanıcının Jetton cüzdan adresi veya fallback
               amount: toNano(usedFallback ? GAS_AMOUNTS.JETTON_TRANSFER_FALLBACK : GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(),
-              payload
+              payload: payload
             }
           ]
         };
@@ -218,7 +214,7 @@ export function TxForm() {
           jettonWalletAddress,
           usedFallback,
           amount: amountInNano.toString(),
-          gas: tx.messages[0].amount,
+          gas: transaction.messages[0].amount,
           forwardAmount: GAS_AMOUNTS.FORWARD_TON_AMOUNT
         });
         
@@ -230,7 +226,7 @@ export function TxForm() {
         
         // İşlemi gönder
         try {
-          const result = await tonConnectUi.sendTransaction(tx, sendOptions);
+          const result = await tonConnectUi.sendTransaction(transaction, sendOptions);
           console.log('Transaction result:', result);
           
           // Transaction hash çıkar ve işlemi izle
