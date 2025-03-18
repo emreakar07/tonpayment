@@ -17,6 +17,14 @@ interface PaymentData {
   token_type?: 'TON' | 'USDT'; // Add token type
 }
 
+// TonConnect UI'nin sendTransaction için beklediği seçenekler
+type ActionModalType = 'before' | 'success' | 'error';
+type ActionNotificationType = 'before' | 'success' | 'error';
+interface ActionConfiguration {
+  modals?: 'all' | ActionModalType[];
+  notifications?: 'all' | ActionNotificationType[];
+}
+
 // Adres doğrulama fonksiyonu - güçlendirilmiş
 const isValidTonAddress = (address: string): boolean => {
   try {
@@ -147,7 +155,7 @@ export function TxForm() {
           .storeAddress(destinationAddress) // destination address
           .storeAddress(Address.parse(userAddress)) // response address (your wallet)
           .storeMaybeRef() // custom_payload - null
-          .storeCoins(toNano('0.05')) // forward_ton_amount - 0.05 TON 
+          .storeCoins(toNano('0.1')) // forward_ton_amount - 0.1 TON (artırıldı)
           .storeBit(true) // forward_payload is a cell reference
           .storeRef(
             beginCell()
@@ -163,7 +171,7 @@ export function TxForm() {
           messages: [
             {
               address: USDT_ADDRESS, // Jetton master contract
-              amount: toNano('0.3').toString(), // 0.3 TON for gas
+              amount: toNano('0.5').toString(), // 0.5 TON for gas (artırıldı)
               payload
             }
           ]
@@ -173,14 +181,22 @@ export function TxForm() {
           from: userAddress,
           to: address,
           amount: amountInNano.toString(),
-          payload
+          payload,
+          gasAmount: tx.messages[0].amount,
+          forwardAmount: toNano('0.1').toString()
         });
         
-        // Ek seçeneklerle sendTransaction (GitHub örneğinde olduğu gibi)
-        const result = await tonConnectUi.sendTransaction(tx, {
+        // TonConnect UI'ın transaction davranışını ayarlayan seçenekler
+        // modals: 'all' - tüm modalleri (before, success, error) gösterir
+        // notifications: ['error', 'success'] - hata ve başarı bildirimlerini gösterir
+        // TonConnect dokümantasyonu: https://docs.ton.org/develop/dapps/ton-connect
+        const sendOptions: ActionConfiguration = {
           modals: 'all',
-          notifications: ['error']
-        });
+          notifications: ['error', 'success']
+        };
+        
+        // Ek seçeneklerle sendTransaction (GitHub örneğinde olduğu gibi)
+        const result = await tonConnectUi.sendTransaction(tx, sendOptions);
         
         // Cevabı işle
         console.log('Transaction result:', result);
@@ -246,7 +262,23 @@ export function TxForm() {
           payload: message.toBoc().toString('base64')
         });
 
-        const result = await tonConnectUi.sendTransaction(tx);
+        // TonConnect UI'ın transaction davranışını ayarlayan seçenekler
+        const sendOptions: ActionConfiguration = {
+          modals: 'all',
+          notifications: ['error', 'success']
+        };
+
+        const result = await tonConnectUi.sendTransaction(tx, sendOptions);
+        
+        // Transaction hash oluştur (USDT transferindeki gibi)
+        try {
+          const imMsgCell = Cell.fromBase64(result.boc);
+          const inMsgHash = imMsgCell.hash().toString('hex');
+          console.log('TON transaction hash:', inMsgHash);
+        } catch (e) {
+          console.error('Error extracting TON transaction hash:', e);
+        }
+        
         setTxStatus('success');
         
         if (window.Telegram?.WebApp) {
@@ -267,11 +299,16 @@ export function TxForm() {
         let errorMsg = error.message;
         
         if (errorMsg.includes('unable to verify transaction')) {
-          errorMsg = 'Unable to verify transaction. Try increasing the fee amount.';
+          errorMsg = 'Unable to verify transaction. Gas miktarı yetersiz kalmış olabilir. Lütfen tekrar deneyin veya cüzdan uygulamanızda işlemi onaylayın.';
+          console.error('Transaction verification error details:', error);
         } else if (errorMsg.includes('invalid address')) {
           errorMsg = 'Invalid address format: ' + address;
         } else if (errorMsg.includes('rejected')) {
           errorMsg = 'Transaction rejected by wallet.';
+        } else if (errorMsg.includes('timeout')) {
+          errorMsg = 'Transaction timed out. Please try again.';
+        } else if (errorMsg.includes('error code 709')) {
+          errorMsg = 'Error 709: Gas fees for transaction not sufficient. Try increasing the fee.';
         }
         
         setErrorMessage(errorMsg);
