@@ -18,19 +18,38 @@ interface PaymentData {
   token_type?: 'TON' | 'USDT'; // Add token type
 }
 
-// Adres doğrulama fonksiyonu
+// Adres doğrulama fonksiyonu - güçlendirilmiş
 const isValidTonAddress = (address: string): boolean => {
   try {
-    Address.parse(address);
+    // Adresin uzunluğunu ve formatını kontrol et
+    if (!address || address.length < 48) {
+      console.error('Invalid address length');
+      return false;
+    }
+    
+    // TON adreslerinin standart formatı EQ veya UQ ile başlar
+    if (!address.startsWith('EQ') && !address.startsWith('UQ')) {
+      console.warn('Address does not start with EQ or UQ, but still attempting to parse');
+    }
+    
+    // Address.parse fonksiyonu ile TON adresinin geçerliliğini kontrol et
+    const parsedAddress = Address.parse(address);
+    
+    // Başarılı bir şekilde parse edildi mi?
+    console.log('Address verified:', parsedAddress.toString());
     return true;
   } catch (error) {
+    console.error('Address validation error:', error);
     return false;
   }
 };
 
+// Ödenecek adres olarak kullanılacak adres
+const DEFAULT_PAYMENT_ADDRESS = 'UQAd8xtxtEo68nYoGjJHomatf35zPmo8pGxwmkj58U_vbIx8';
+
 export function TxForm() {
   const [amount, setAmount] = useState('');
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(DEFAULT_PAYMENT_ADDRESS); // Varsayılan adres ayarlandı
   const [paymentId, setPaymentId] = useState('');
   const [txStatus, setTxStatus] = useState<'pending' | 'success' | 'error' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -58,7 +77,12 @@ export function TxForm() {
         const amountInNano = (parseFloat(paymentData.amount) * Math.pow(10, decimals)).toString();
         
         setAmount(amountInNano);
-        setAddress(paymentData.address);
+        
+        // URL'den gelen adresi kullan, eğer yoksa varsayılanı koru
+        if (paymentData.address && paymentData.address.trim() !== '') {
+          setAddress(paymentData.address);
+        }
+        
         setPaymentId(paymentData.payment_id);
         setComment(`Payment ID: ${paymentData.payment_id}`);
       } catch (error) {
@@ -116,6 +140,7 @@ export function TxForm() {
           .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
           .storeRef(
             beginCell()
+              .storeUint(0, 32) // Yorum için prefix - düzeltildi
               .storeBuffer(Buffer.from(JSON.stringify(paymentData)))
               .endCell()
           )
@@ -129,7 +154,7 @@ export function TxForm() {
           .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
           .storeRef(
             beginCell()
-              .storeUint(0x706c7374, 32)  // "plst" as hex for "payload store"
+              .storeUint(0, 32) // 0x706c7374 yerine 0 kullanıldı (yorum prefix)
               .storeBuffer(Buffer.from(JSON.stringify({
                 ...paymentData,
                 timestamp: Date.now().toString()
@@ -139,7 +164,7 @@ export function TxForm() {
           .endCell();
 
         const tx: SendTransactionRequest = {
-          validUntil: Math.floor(Date.now() / 1000) + 60,
+          validUntil: Math.floor(Date.now() / 1000) + 300, // 5 dakikaya çıkarıldı
           messages: [
             {
               address: address,
@@ -197,7 +222,7 @@ export function TxForm() {
         const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
         
         // Benzersiz bir query ID oluştur - tamamen rastgele
-        const uniqueQueryId = Math.floor(Math.random() * 2**64);
+        const uniqueQueryId = Math.floor(Math.random() * 2**32); // 32 bit daha güvenli
         
         const jettonTransferMessage = createJettonTransferMessage({
           amount: amountInNano,
@@ -209,11 +234,11 @@ export function TxForm() {
         });
         
         const tx: SendTransactionRequest = {
-          validUntil: Math.floor(Date.now() / 1000) + 60,
+          validUntil: Math.floor(Date.now() / 1000) + 300, // 5 dakikaya çıkarıldı
           messages: [
             {
               address: USDT_ADDRESS,
-              amount: toNano('0.05').toString(), // 0.05 TON for fees
+              amount: toNano('0.15').toString(), // 0.15 TON for fees - artırıldı
               payload: jettonTransferMessage.toBoc().toString('base64')
             }
           ]
@@ -246,8 +271,18 @@ export function TxForm() {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
         
-        // Kullanıcıya daha spesifik hata mesajı göster
-        setErrorMessage(error.message);
+        // Hata mesajını daha anlaşılır hale getir
+        let errorMsg = error.message;
+        
+        if (errorMsg.includes('unable to verify transaction')) {
+          errorMsg = 'Unable to verify transaction. Please check your wallet and try again.';
+        } else if (errorMsg.includes('invalid address')) {
+          errorMsg = 'Invalid TON address: ' + address;
+        } else if (errorMsg.includes('rejected')) {
+          errorMsg = 'Transaction rejected by wallet.';
+        }
+        
+        setErrorMessage(errorMsg);
         setTxStatus('error');
       } else {
         console.error('Unknown error type:', typeof error);
@@ -284,7 +319,10 @@ export function TxForm() {
   const getFormattedAmount = () => {
     if (!amount) return '0';
     
-    const formattedAmount = formatAmount(amount);
+    // Token türüne göre decimals değerini doğru biçimde kullan
+    const decimals = tokenType === 'USDT' ? USDT_DECIMALS : 9;
+    const formattedAmount = formatAmount(amount, decimals);
+    
     return tokenType === 'TON' 
       ? `${formattedAmount} TON` 
       : `${formattedAmount} USDT`;
