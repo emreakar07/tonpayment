@@ -4,14 +4,10 @@ import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet
 import { beginCell, storeStateInit, toNano, Address } from "@ton/core";
 import { 
   USDT_ADDRESS, 
-  USDT_ADDRESS_NON_BOUNCEABLE,
   USDT_DECIMALS,
   createJettonTransferMessage, 
   createCommentPayload, 
-  formatAmount,
-  createSimplifiedJettonTransferRequest,
-  createAlternativeJettonTransferRequest,
-  predictJettonWalletAddress
+  formatAmount
 } from '../../utils/jetton-utils';
 
 interface PaymentData {
@@ -42,7 +38,6 @@ export function TxForm() {
   const [tonConnectUi] = useTonConnectUI();
   const [comment, setComment] = useState('');
   const [tokenType, setTokenType] = useState<'TON' | 'USDT'>('TON');
-  const [transferMethod, setTransferMethod] = useState<'standard' | 'simplified' | 'alternative'>('simplified');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -194,121 +189,37 @@ export function TxForm() {
           amount: amountInNano.toString(),
           tokenType: tokenType,
           usdt_address: USDT_ADDRESS,
-          transferMethod,
           decimals: USDT_DECIMALS
         });
 
-        let tx: SendTransactionRequest;
+        // Standard method - using createJettonTransferMessage
+        const parsedUserAddress = Address.parse(userAddress);
+        const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
         
-        if (transferMethod === 'standard') {
-          // Standard method - using createJettonTransferMessage
-          const parsedUserAddress = Address.parse(userAddress);
-          const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
-          
-          // Benzersiz bir query ID oluştur - tamamen rastgele
-          const uniqueQueryId = Math.floor(Math.random() * 2**32);
-          
-          const jettonTransferMessage = createJettonTransferMessage({
-            amount: amountInNano,
-            toAddress: destinationAddress,
-            responseAddress: parsedUserAddress,
-            forwardAmount: toNano('0.000000001'), // 1 nanoton for notification
-            forwardPayload: commentPayload,
-            queryId: uniqueQueryId
-          });
-          
-          tx = {
-            validUntil: Math.floor(Date.now() / 1000) + 300, // 5 dakika geçerli
-            messages: [
-              {
-                address: USDT_ADDRESS,
-                amount: toNano('0.15').toString(), // 0.15 TON for fees
-                payload: jettonTransferMessage.toBoc().toString('base64')
-              }
-            ]
-          };
-          
-          console.log('Using standard method with payload:', jettonTransferMessage.toBoc().toString('base64'));
-        } 
-        else if (transferMethod === 'simplified') {
-          // Simplified method - using createSimplifiedJettonTransferRequest
-          tx = createSimplifiedJettonTransferRequest({
-            jettonMasterAddress: USDT_ADDRESS,
-            toAddress: address,
-            amount: amountInNano,
-            fromAddress: userAddress,
-            comment: `Payment ID: ${paymentId}`,
-            attachedAmount: toNano('0.2') // Increase attached TON amount
-          });
-          
-          console.log('Using simplified method with request:', tx);
-        }
-        else if (transferMethod === 'alternative') {
-          // Alternative method - using createAlternativeJettonTransferRequest
-          // Calculate the user's Jetton wallet address
-          const parsedUserAddress = Address.parse(userAddress);
-          const parsedJettonMasterAddress = Address.parse(USDT_ADDRESS);
-          
-          // Try to predict the user's Jetton wallet address
-          try {
-            const jettonWalletAddress = predictJettonWalletAddress(
-              parsedUserAddress,
-              parsedJettonMasterAddress
-            );
-            
-            console.log('Predicted Jetton wallet address:', jettonWalletAddress);
-            
-            tx = createAlternativeJettonTransferRequest({
-              jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE,
-              toAddress: address,
-              amount: amountInNano,
-              fromAddress: userAddress,
-              comment: `Payment ID: ${paymentId}`,
-              attachedAmount: toNano('0.25') // Even more TON for fees
-            });
-          } catch (error) {
-            console.error('Error predicting Jetton wallet address:', error);
-            // Fallback to using the non-bounceable USDT address
-            tx = createAlternativeJettonTransferRequest({
-              jettonWalletAddress: USDT_ADDRESS_NON_BOUNCEABLE,
-              toAddress: address,
-              amount: amountInNano,
-              fromAddress: userAddress,
-              comment: `Payment ID: ${paymentId}`,
-              attachedAmount: toNano('0.25') // Even more TON for fees
-            });
-          }
-          
-          console.log('Using alternative method with request:', tx);
-        }
-        else {
-          // Default to standard method if transferMethod is not recognized
-          console.warn('Unknown transfer method, defaulting to standard');
-          
-          const parsedUserAddress = Address.parse(userAddress);
-          const commentPayload = createCommentPayload(`Payment ID: ${paymentId}`);
-          const uniqueQueryId = Math.floor(Math.random() * 2**32);
-          
-          const jettonTransferMessage = createJettonTransferMessage({
-            amount: amountInNano,
-            toAddress: destinationAddress,
-            responseAddress: parsedUserAddress,
-            forwardAmount: toNano('0.000000001'),
-            forwardPayload: commentPayload,
-            queryId: uniqueQueryId
-          });
-          
-          tx = {
-            validUntil: Math.floor(Date.now() / 1000) + 300,
-            messages: [
-              {
-                address: USDT_ADDRESS,
-                amount: toNano('0.15').toString(),
-                payload: jettonTransferMessage.toBoc().toString('base64')
-              }
-            ]
-          };
-        }
+        // Benzersiz bir query ID oluştur - tamamen rastgele
+        const uniqueQueryId = Math.floor(Math.random() * 2**64);
+        
+        const jettonTransferMessage = createJettonTransferMessage({
+          amount: amountInNano,
+          toAddress: destinationAddress,
+          responseAddress: parsedUserAddress,
+          forwardAmount: toNano('0.000000001'), // 1 nanoton for notification
+          forwardPayload: commentPayload,
+          queryId: uniqueQueryId
+        });
+        
+        const tx: SendTransactionRequest = {
+          validUntil: Math.floor(Date.now() / 1000) + 60,
+          messages: [
+            {
+              address: USDT_ADDRESS,
+              amount: toNano('0.05').toString(), // 0.05 TON for fees
+              payload: jettonTransferMessage.toBoc().toString('base64')
+            }
+          ]
+        };
+        
+        console.log('Using standard method with payload:', jettonTransferMessage.toBoc().toString('base64'));
 
         console.log('Transaction sent, waiting for result...');
         const result = await tonConnectUi.sendTransaction(tx);
@@ -349,7 +260,7 @@ export function TxForm() {
         window.Telegram.WebApp.MainButton.show();
       }
     }
-  }, [address, amount, paymentId, comment, tonConnectUi, tokenType, wallet, transferMethod]);
+  }, [address, amount, paymentId, comment, tonConnectUi, tokenType, wallet]);
 
   // Transaction durumuna göre UI göster
   const renderStatus = () => {
@@ -407,21 +318,6 @@ export function TxForm() {
             <option value="USDT">USDT</option>
           </select>
         </div>
-        
-        {tokenType === 'USDT' && (
-          <div className="input-group">
-            <label>Transfer Method:</label>
-            <select 
-              value={transferMethod} 
-              onChange={(e) => setTransferMethod(e.target.value as 'standard' | 'simplified' | 'alternative')}
-              disabled={txStatus === 'pending'}
-            >
-              <option value="standard">Standard</option>
-              <option value="simplified">Simplified</option>
-              <option value="alternative">Alternative</option>
-            </select>
-          </div>
-        )}
         
         <div className="input-group">
           <label>Amount:</label>
