@@ -149,7 +149,6 @@ export function TxForm() {
         // Önce bizim adresimizi deneyelim, eğer hata alırsak GitHub örneğindeki adresi kullanalım
         let jettonMasterAddress = USDT.toString();
         let jettonWalletAddress = '';
-        let usedFallback = false;
         
         try {
           console.log(`Attempting to get jetton wallet address for master contract: ${jettonMasterAddress}`);
@@ -166,30 +165,20 @@ export function TxForm() {
             console.log('Found jetton wallet address using alternative USDT address:', jettonWalletAddress);
           } catch (e) {
             console.error('Failed to get jetton wallet address with both USDT addresses:', e);
-            
-            // Fallback: Doğrudan master adrese işlem yapalım
-            console.log('Using fallback: sending directly to master contract');
-            jettonWalletAddress = USDT.toString(); // Master adresi kullan
-            usedFallback = true;
-            
-            // Bu aşamada hata fırlatmıyoruz, bunun yerine fallback kullanıyoruz
-            // Kullanıcıya bilgi mesajı göstermek için
-            setErrorMessage(ERROR_MESSAGES.JETTON_WALLET_NOT_FOUND);
+            throw new Error('Unable to find your USDT wallet address. Please make sure you have USDT tokens in your wallet.');
           }
         }
         
-        // Jetton Transfer Mantığı (önerilen formata göre güncellendi)
-        
-        // Jetton transfer mesajı oluştur (op=0xf8a7ea5)
+        // Jetton Transfer Mantığı
         const body = beginCell()
-          .storeUint(0xf8a7ea5, 32) // Jetton transfer op code - önerilen değer
+          .storeUint(0xf8a7ea5, 32) // Jetton transfer op code
           .storeUint(DEFAULT_QUERY_ID, 64) // query_id
           .storeCoins(amountInNano) // amount to transfer
           .storeAddress(destinationAddress) // alıcı adresi
           .storeAddress(Address.parse(userAddress)) // yanıt adresi (kullanıcının cüzdanı)
           .storeUint(0, 1) // custom_payload (opsiyonel)
           .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT)) // forward_ton_amount
-          .storeUint(0, 1) // forward_payload (opsiyonel) - yorumu bu şekilde ekleyebiliriz
+          .storeUint(0, 1) // forward_payload (opsiyonel)
           .endCell();
         
         // Payload'ı base64 formatına dönüştürüyoruz
@@ -201,19 +190,18 @@ export function TxForm() {
           messages: [
             {
               address: jettonWalletAddress,
-              amount: toNano(usedFallback ? GAS_AMOUNTS.JETTON_TRANSFER_FALLBACK : GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(),
+              amount: toNano(GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(),
               payload: payload,
-              stateInit: undefined // null yerine undefined kullanıyoruz
+              stateInit: undefined
             }
           ]
         };
         
-        console.log(`Sending USDT transfer ${usedFallback ? '(FALLBACK MODE)' : ''}:`, {
+        console.log('Sending USDT transfer:', {
           from: userAddress,
           to: address,
           jettonMasterAddress,
           jettonWalletAddress,
-          usedFallback,
           amount: amountInNano.toString(),
           gas: transaction.messages[0].amount,
           forwardAmount: GAS_AMOUNTS.FORWARD_TON_AMOUNT,
@@ -234,7 +222,6 @@ export function TxForm() {
             amount: amountInNano.toString(),
             gas: transaction.messages[0].amount,
             jettonWalletAddress,
-            usedFallback
           });
           
           // Transaction hash çıkar ve işlemi izle
@@ -256,7 +243,6 @@ export function TxForm() {
                 from: userAddress,
                 to: address,
                 jettonWalletAddress,
-                usedFallback,
                 gas: transaction.messages[0].amount
               });
             } catch (e: any) {

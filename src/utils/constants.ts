@@ -19,9 +19,8 @@ export const USDT_ALTERNATIVE = Address.parse('EQBynBO23ywHy_CgarY9NK9FTz0yDsG82
 export const GAS_AMOUNTS = {
   TON_TRANSFER: '0.01',          // Basit TON transferi için gas
   JETTON_TRANSFER: '0.05',       // Basit Jetton transferi için minimum gas
-  JETTON_TRANSFER_WITH_COMMENT: '1.0',  // Yorumlu Jetton transferi için önerilen gas (artırıldı)
-  FORWARD_TON_AMOUNT: '0.5',     // Jetton transferinde forward_ton_amount için önerilen değer (artırıldı)
-  JETTON_TRANSFER_FALLBACK: '1.5' // Jetton transferi başarısız olduğunda kullanılacak gas (artırıldı)
+  JETTON_TRANSFER_WITH_COMMENT: '1.0',  // Yorumlu Jetton transferi için önerilen gas
+  FORWARD_TON_AMOUNT: '0.5'      // Jetton transferinde forward_ton_amount için önerilen değer
 };
 
 // Errors messages
@@ -31,7 +30,7 @@ export const ERROR_MESSAGES = {
   REJECTED: 'İşlem cüzdan tarafından reddedildi.',
   TIMEOUT: 'İşlem zaman aşımına uğradı. Lütfen tekrar deneyin.',
   ERROR_709: 'Hata 709: İşlem için gas ücreti yetersiz. Lütfen gas ücretini artırın.',
-  JETTON_WALLET_NOT_FOUND: 'USDT cüzdan adresi bulunamadı. Bu, USDT token\'larına sahip olmadığınız anlamına gelebilir. Direkt transfer yöntemi deneniyor.',
+  JETTON_WALLET_NOT_FOUND: 'USDT cüzdan adresi bulunamadı. Lütfen cüzdanınızda USDT token\'ları olduğundan emin olun.',
   UNKNOWN: 'Transfer sırasında bilinmeyen bir hata oluştu'
 };
 
