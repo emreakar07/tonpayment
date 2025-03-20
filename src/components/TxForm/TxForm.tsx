@@ -78,31 +78,57 @@ export function TxForm() {
 
     if (paymentDataBase64) {
       try {
+        console.log('Received payment_data:', paymentDataBase64);
+        
+        // Base64 decode
         const decodedData = atob(paymentDataBase64);
+        console.log('Decoded data:', decodedData);
+        
+        // JSON parse
         const paymentData: PaymentData = JSON.parse(decodedData);
+        console.log('Parsed payment data:', paymentData);
+        
+        // Validate required fields
+        if (!paymentData.amount || !paymentData.address) {
+          throw new Error('Missing required fields in payment data');
+        }
         
         // Set token type if provided, default to TON
         if (paymentData.token_type) {
+          console.log('Setting token type:', paymentData.token_type);
           setTokenType(paymentData.token_type);
         }
         
         // Convert amount to nano units based on token type
         const decimals = paymentData.token_type === 'USDT' ? USDT_DECIMALS : 9;
         const amountInNano = (parseFloat(paymentData.amount) * Math.pow(10, decimals)).toString();
+        console.log('Converted amount:', {
+          original: paymentData.amount,
+          decimals,
+          nano: amountInNano
+        });
         
         setAmount(amountInNano);
         
         // URL'den gelen adresi kullan, eğer yoksa varsayılanı koru
         if (paymentData.address && paymentData.address.trim() !== '') {
+          console.log('Setting address from payment data:', paymentData.address);
           setAddress(paymentData.address);
+        } else {
+          console.log('Using default address:', DEFAULT_PAYMENT_ADDRESS);
         }
         
-        setPaymentId(paymentData.payment_id);
-        setComment(`Payment ID: ${paymentData.payment_id}`);
+        if (paymentData.payment_id) {
+          console.log('Setting payment ID:', paymentData.payment_id);
+          setPaymentId(paymentData.payment_id);
+          setComment(`Payment ID: ${paymentData.payment_id}`);
+        }
       } catch (error) {
         console.error('Error parsing payment data:', error);
-        setErrorMessage('Error parsing payment data');
+        setErrorMessage('Error parsing payment data: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
+    } else {
+      console.log('No payment_data found in URL');
     }
   }, []);
 
