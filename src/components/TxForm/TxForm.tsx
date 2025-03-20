@@ -155,23 +155,23 @@ export function TxForm() {
           const jettonWalletAddress = await getJettonWalletAddress(USDT.toString(), cleanUserAddress);
           console.log('Found jetton wallet address:', jettonWalletAddress);
 
-          // Transfer payload'ı oluştur
+          // Transfer payload'ı oluştur - yeni format
           const payload = beginCell()
-            .storeUint(0x0f8a7ea5, 32) // transfer op code
+            .storeUint(0xf8a7ea5, 32) // Jetton transfer işlem kodu
             .storeUint(DEFAULT_QUERY_ID, 64) // query_id
             .storeCoins(amountInNano) // amount
-            .storeAddress(destinationAddress) // destination
-            .storeAddress(Address.parse(cleanUserAddress)) // response_destination (kullanıcının cüzdanı)
-            .storeMaybeRef() // custom_payload (boş)
+            .storeAddress(destinationAddress) // Alıcı adresi
+            .storeAddress(Address.parse(cleanUserAddress)) // Geri dönüş adresi
+            .storeUint(0, 1) // custom_payload: yok
             .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT)) // forward_ton_amount
-            .storeMaybeRef() // forward_payload (boş)
+            .storeUint(0, 1) // forward_payload: yok
             .endCell()
             .toBoc()
             .toString('base64');
 
-          // Transaction oluştur
+          // Transaction oluştur - yeni format
           const transaction: SendTransactionRequest = {
-            validUntil: Math.round(Date.now() / 1000) + TRANSACTION_TIMEOUT,
+            validUntil: Math.floor(Date.now() / 1000) + TRANSACTION_TIMEOUT,
             messages: [
               {
                 address: jettonWalletAddress,
