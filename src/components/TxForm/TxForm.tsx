@@ -197,12 +197,13 @@ export function TxForm() {
         
         // Transaction oluştur
         const transaction: SendTransactionRequest = {
-          validUntil: Math.floor(Date.now() / 1000) + TRANSACTION_TIMEOUT, // 5 dakika geçerlilik süresi
+          validUntil: Math.floor(Date.now() / 1000) + TRANSACTION_TIMEOUT,
           messages: [
             {
-              address: jettonWalletAddress, // Kullanıcının Jetton cüzdan adresi veya fallback
+              address: jettonWalletAddress,
               amount: toNano(usedFallback ? GAS_AMOUNTS.JETTON_TRANSFER_FALLBACK : GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(),
-              payload: payload
+              payload: payload,
+              stateInit: undefined // null yerine undefined kullanıyoruz
             }
           ]
         };
@@ -215,7 +216,8 @@ export function TxForm() {
           usedFallback,
           amount: amountInNano.toString(),
           gas: transaction.messages[0].amount,
-          forwardAmount: GAS_AMOUNTS.FORWARD_TON_AMOUNT
+          forwardAmount: GAS_AMOUNTS.FORWARD_TON_AMOUNT,
+          transactionTimeout: TRANSACTION_TIMEOUT
         });
         
         // GitHub örneğindeki gibi sendTransaction options
@@ -227,7 +229,13 @@ export function TxForm() {
         // İşlemi gönder
         try {
           const result = await tonConnectUi.sendTransaction(transaction, sendOptions);
-          console.log('Transaction result:', result);
+          console.log('Transaction details:', {
+            hash: result.boc,
+            amount: amountInNano.toString(),
+            gas: transaction.messages[0].amount,
+            jettonWalletAddress,
+            usedFallback
+          });
           
           // Transaction hash çıkar ve işlemi izle
           try {
@@ -240,11 +248,24 @@ export function TxForm() {
               console.log('Waiting for transaction to complete...');
               const txInfo = await waitForTx(inMsgHash);
               console.log('Transaction completed:', txInfo);
-            } catch (e) {
+              
+              // İşlem başarılı olduğunda detaylı log
+              console.log('Transaction success details:', {
+                hash: inMsgHash,
+                amount: amountInNano.toString(),
+                from: userAddress,
+                to: address,
+                jettonWalletAddress,
+                usedFallback,
+                gas: transaction.messages[0].amount
+              });
+            } catch (e: any) {
               console.error('Error waiting for transaction:', e);
+              throw new Error('Transaction monitoring failed: ' + (e.message || 'Unknown error'));
             }
-          } catch (e) {
+          } catch (e: any) {
             console.error('Error extracting transaction hash:', e);
+            throw new Error('Failed to extract transaction hash: ' + (e.message || 'Unknown error'));
           }
           
           setTxStatus('success');
@@ -256,12 +277,20 @@ export function TxForm() {
               status: 'success',
               token: 'USDT',
               payment_id: paymentId,
-              tx_hash: result.boc
+              tx_hash: result.boc,
+              amount: amountInNano.toString(),
+              gas: transaction.messages[0].amount
             }));
           }
         } catch (txError) {
-          console.error('Error sending transaction:', txError);
-          throw txError; // Hata işleme mekanizmasına geçmesi için yeniden fırlat
+          console.error('Detailed transaction error:', {
+            error: txError,
+            transaction: transaction,
+            wallet: wallet?.account.address,
+            amount: amountInNano.toString(),
+            gas: transaction.messages[0].amount
+          });
+          throw txError;
         }
       } else if (tokenType === 'TON') {
         // Native TON transfer

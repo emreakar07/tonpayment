@@ -19,20 +19,20 @@ export const USDT_ALTERNATIVE = Address.parse('EQBynBO23ywHy_CgarY9NK9FTz0yDsG82
 export const GAS_AMOUNTS = {
   TON_TRANSFER: '0.01',          // Basit TON transferi için gas
   JETTON_TRANSFER: '0.05',       // Basit Jetton transferi için minimum gas
-  JETTON_TRANSFER_WITH_COMMENT: '0.65',  // Yorumlu Jetton transferi için önerilen gas (artırıldı)
-  FORWARD_TON_AMOUNT: '0.25',     // Jetton transferinde forward_ton_amount için önerilen değer (artırıldı)
-  JETTON_TRANSFER_FALLBACK: '0.9' // Jetton transferi başarısız olduğunda kullanılacak gas (artırıldı)
+  JETTON_TRANSFER_WITH_COMMENT: '1.0',  // Yorumlu Jetton transferi için önerilen gas (artırıldı)
+  FORWARD_TON_AMOUNT: '0.5',     // Jetton transferinde forward_ton_amount için önerilen değer (artırıldı)
+  JETTON_TRANSFER_FALLBACK: '1.5' // Jetton transferi başarısız olduğunda kullanılacak gas (artırıldı)
 };
 
 // Errors messages
 export const ERROR_MESSAGES = {
-  UNABLE_TO_VERIFY: 'Unable to verify transaction. Lütfen cüzdan uygulamanızda işlemi onaylayın ve daha fazla TON bakiyesi olduğundan emin olun.',
-  INVALID_ADDRESS: 'Invalid TON address format:',
-  REJECTED: 'Transaction rejected by wallet.',
-  TIMEOUT: 'Transaction timed out. Please try again.',
-  ERROR_709: 'Error 709: Gas fees for transaction not sufficient. Try increasing the fee.',
+  UNABLE_TO_VERIFY: 'İşlem doğrulanamadı. Lütfen şunları kontrol edin:\n1. Cüzdanınızda yeterli TON bakiyesi var mı?\n2. Cüzdan uygulamanızda işlemi onayladınız mı?\n3. İnternet bağlantınız stabil mi?',
+  INVALID_ADDRESS: 'Geçersiz TON adresi formatı:',
+  REJECTED: 'İşlem cüzdan tarafından reddedildi.',
+  TIMEOUT: 'İşlem zaman aşımına uğradı. Lütfen tekrar deneyin.',
+  ERROR_709: 'Hata 709: İşlem için gas ücreti yetersiz. Lütfen gas ücretini artırın.',
   JETTON_WALLET_NOT_FOUND: 'USDT cüzdan adresi bulunamadı. Bu, USDT token\'larına sahip olmadığınız anlamına gelebilir. Direkt transfer yöntemi deneniyor.',
-  UNKNOWN: 'Unknown error occurred during transfer'
+  UNKNOWN: 'Transfer sırasında bilinmeyen bir hata oluştu'
 };
 
 // TON API URLs
