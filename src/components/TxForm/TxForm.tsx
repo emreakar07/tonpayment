@@ -161,9 +161,9 @@ export function TxForm() {
             .storeUint(DEFAULT_QUERY_ID, 64) // query_id
             .storeCoins(amountInNano) // amount
             .storeAddress(destinationAddress) // destination
-            .storeAddress(null) // response_destination (null olarak bırakıyoruz)
+            .storeAddress(Address.parse(cleanUserAddress)) // response_destination (kullanıcının cüzdanı)
             .storeMaybeRef() // custom_payload (boş)
-            .storeCoins(0) // forward_ton_amount (0 olarak bırakıyoruz)
+            .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT)) // forward_ton_amount
             .storeMaybeRef() // forward_payload (boş)
             .endCell()
             .toBoc()

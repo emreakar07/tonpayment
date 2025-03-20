@@ -17,16 +17,65 @@ export async function waitForTx(hash: string, limit: number = 10): Promise<any> 
   let i = 0;
   
   while (i < limit) {
-    const tx = await getTx(hash);
-    if (tx) {
-      return tx;
+    try {
+      console.log(`Attempt ${i + 1}/${limit} to get transaction:`, hash);
+      
+      // API endpoint'i
+      const url = `${API_URL}/blockchain/transactions/${hash}`;
+      console.log('Making API request to:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Transaction data:', data);
+
+      if (!data || !data.transaction) {
+        console.error('Invalid API response:', data);
+        throw new Error('Invalid API response: missing transaction data');
+      }
+
+      // İşlem durumunu kontrol et
+      const status = data.transaction.status;
+      console.log('Transaction status:', status);
+
+      if (status === 'completed') {
+        console.log('Transaction completed successfully');
+        return data;
+      } else if (status === 'failed') {
+        console.error('Transaction failed');
+        throw new Error('Transaction failed');
+      }
+      
+      // İşlem hala bekliyorsa, 2 saniye bekle ve tekrar dene
+      console.log('Transaction still pending, waiting 2 seconds...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      i++;
+    } catch (error) {
+      console.error(`Error in attempt ${i + 1}:`, error);
+      if (i === limit - 1) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      i++;
     }
-    
-    await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
-    i++;
   }
   
-  throw new Error('Transaction not found');
+  throw new Error('Transaction not found after maximum attempts');
 }
 
 /**
@@ -78,7 +127,7 @@ export async function getJettonWalletAddress(masterAddress: string, ownerAddress
     
     // Request body - args array formatında gönder
     const body = {
-      args: [`0x${cleanOwnerAddress}`]
+      args: [cleanOwnerAddress] // 0x prefix'i kaldırdık
     };
 
     console.log('Making API request to:', url);
