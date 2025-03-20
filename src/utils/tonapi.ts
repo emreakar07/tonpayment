@@ -76,9 +76,9 @@ export async function getJettonWalletAddress(masterAddress: string, ownerAddress
     // API endpoint'i
     const url = `https://tonapi.io/v2/blockchain/accounts/${cleanMasterAddress}/methods/get_wallet_address`;
     
-    // Request body
+    // Request body - args array formatında gönder
     const body = {
-      address: cleanOwnerAddress
+      args: [`0x${cleanOwnerAddress}`]
     };
 
     console.log('Making API request to:', url);
@@ -106,13 +106,14 @@ export async function getJettonWalletAddress(masterAddress: string, ownerAddress
     const data = await response.json();
     console.log('API Response:', data);
 
-    if (!data || !data.address) {
-      console.error('Invalid API response:', data);
-      throw new Error('Invalid API response: missing address');
+    // Response formatını kontrol et
+    if (!data || !data.decoded || !data.decoded.jetton_wallet_address) {
+      console.error('Invalid API response format:', data);
+      throw new Error('Invalid API response: missing jetton wallet address');
     }
 
     // Adres formatını kontrol et
-    const jettonWalletAddress = data.address;
+    const jettonWalletAddress = data.decoded.jetton_wallet_address;
     if (!jettonWalletAddress.startsWith('EQ') && !jettonWalletAddress.startsWith('UQ')) {
       console.error('Invalid jetton wallet address format:', jettonWalletAddress);
       throw new Error('Invalid jetton wallet address format');
