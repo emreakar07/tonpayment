@@ -149,145 +149,126 @@ export function TxForm() {
         const cleanUserAddress = userAddress.replace('0x', '');
         console.log('Cleaned user address:', cleanUserAddress);
         
-        // Önce bizim adresimizi deneyelim
-        let jettonMasterAddress = USDT.toString();
-        let jettonWalletAddress = '';
-        
         try {
-          console.log(`Attempting to get jetton wallet address for master contract: ${jettonMasterAddress}`);
-          jettonWalletAddress = await getJettonWalletAddress(jettonMasterAddress, cleanUserAddress);
+          // Jetton wallet adresini al
+          console.log('Getting jetton wallet address...');
+          const jettonWalletAddress = await getJettonWalletAddress(USDT.toString(), cleanUserAddress);
           console.log('Found jetton wallet address:', jettonWalletAddress);
-        } catch (e) {
-          console.warn('Error with primary USDT address, trying alternative:', e);
-          
-          // Alternatif USDT adresini deneyelim
-          jettonMasterAddress = USDT_ALTERNATIVE.toString();
-          try {
-            console.log(`Attempting to get jetton wallet address for alternative master contract: ${jettonMasterAddress}`);
-            jettonWalletAddress = await getJettonWalletAddress(jettonMasterAddress, cleanUserAddress);
-            console.log('Found jetton wallet address with alternative:', jettonWalletAddress);
-          } catch (e) {
-            console.error('Failed to get jetton wallet address:', e);
-            setErrorMessage(ERROR_MESSAGES.JETTON_WALLET_NOT_FOUND);
-            setTxStatus('error');
-            return;
-          }
-        }
-        
-        // Jetton Transfer Mantığı
-        const body = beginCell()
-          .storeUint(0xf8a7ea5, 32) // Jetton transfer op code
-          .storeUint(DEFAULT_QUERY_ID, 64) // query_id
-          .storeCoins(amountInNano) // amount to transfer
-          .storeAddress(destinationAddress) // alıcı adresi
-          .storeAddress(Address.parse(cleanUserAddress)) // yanıt adresi (kullanıcının cüzdanı)
-          .storeUint(0, 1) // custom_payload (opsiyonel)
-          .storeCoins(toNano(GAS_AMOUNTS.FORWARD_TON_AMOUNT)) // forward_ton_amount
-          .storeUint(0, 1) // forward_payload (opsiyonel)
-          .endCell();
-        
-        // Payload'ı base64 formatına dönüştürüyoruz
-        const payload = body.toBoc().toString('base64');
-        
-        // Transaction oluştur
-        const transaction: SendTransactionRequest = {
-          validUntil: Math.floor(Date.now() / 1000) + TRANSACTION_TIMEOUT,
-          messages: [
-            {
-              address: jettonWalletAddress,
-              amount: toNano(GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(),
-              payload: payload,
-              stateInit: undefined
-            }
-          ]
-        };
-        
-        // İşlem detaylarını logla
-        console.log('Transaction details:', {
-          from: cleanUserAddress,
-          to: address,
-          jettonMasterAddress,
-          jettonWalletAddress,
-          amount: amountInNano.toString(),
-          gas: transaction.messages[0].amount,
-          forwardAmount: GAS_AMOUNTS.FORWARD_TON_AMOUNT,
-          transactionTimeout: TRANSACTION_TIMEOUT,
-          payload: payload
-        });
-        
-        // TonConnect UI options
-        const sendOptions: ActionConfiguration = {
-          modals: ['before', 'success', 'error'],
-          notifications: ['error', 'success']
-        };
-        
-        // İşlemi gönder
-        try {
-          console.log('Sending transaction...');
-          const result = await tonConnectUi.sendTransaction(transaction, sendOptions);
-          console.log('Transaction sent successfully:', {
-            hash: result.boc,
+
+          // Transfer payload'ı oluştur
+          const payload = beginCell()
+            .storeUint(0x0f8a7ea5, 32) // transfer op code
+            .storeUint(DEFAULT_QUERY_ID, 64) // query_id
+            .storeCoins(amountInNano) // amount
+            .storeAddress(destinationAddress) // destination
+            .storeAddress(null) // response_destination (null olarak bırakıyoruz)
+            .storeMaybeRef() // custom_payload (boş)
+            .storeCoins(0) // forward_ton_amount (0 olarak bırakıyoruz)
+            .storeMaybeRef() // forward_payload (boş)
+            .endCell()
+            .toBoc()
+            .toString('base64');
+
+          // Transaction oluştur
+          const transaction: SendTransactionRequest = {
+            validUntil: Math.round(Date.now() / 1000) + TRANSACTION_TIMEOUT,
+            messages: [
+              {
+                address: jettonWalletAddress,
+                amount: toNano(GAS_AMOUNTS.JETTON_TRANSFER_WITH_COMMENT).toString(),
+                payload: payload
+              }
+            ]
+          };
+
+          // İşlem detaylarını logla
+          console.log('Transaction details:', {
+            from: cleanUserAddress,
+            to: address,
+            jettonWalletAddress,
             amount: amountInNano.toString(),
             gas: transaction.messages[0].amount,
-            jettonWalletAddress
+            payload: payload
           });
-          
-          // Transaction hash çıkar ve işlemi izle
+
+          // TonConnect UI options
+          const sendOptions: ActionConfiguration = {
+            modals: 'all',
+            notifications: ['error']
+          };
+
+          // İşlemi gönder
           try {
-            const imMsgCell = Cell.fromBase64(result.boc);
-            const inMsgHash = imMsgCell.hash().toString('hex');
-            console.log('Transaction hash:', inMsgHash);
-            
-            // İşlemi izle
+            console.log('Sending transaction...');
+            const result = await tonConnectUi.sendTransaction(transaction, sendOptions);
+            console.log('Transaction sent successfully:', {
+              hash: result.boc,
+              amount: amountInNano.toString(),
+              gas: transaction.messages[0].amount,
+              jettonWalletAddress
+            });
+
+            // Transaction hash çıkar ve işlemi izle
             try {
-              console.log('Waiting for transaction to complete...');
-              const txInfo = await waitForTx(inMsgHash);
-              console.log('Transaction completed successfully:', txInfo);
-              
-              // İşlem başarılı olduğunda detaylı log
-              console.log('Transaction success details:', {
-                hash: inMsgHash,
-                amount: amountInNano.toString(),
-                from: cleanUserAddress,
-                to: address,
-                jettonWalletAddress,
-                gas: transaction.messages[0].amount
-              });
-              
-              setTxStatus('success');
-              
-              if (window.Telegram?.WebApp) {
-                window.Telegram.WebApp.MainButton.setText('Payment Successful!');
-                window.Telegram.WebApp.MainButton.show();
-                window.Telegram.WebApp.sendData(JSON.stringify({
-                  status: 'success',
-                  token: 'USDT',
-                  payment_id: paymentId,
-                  tx_hash: result.boc,
+              const imMsgCell = Cell.fromBase64(result.boc);
+              const inMsgHash = imMsgCell.hash().toString('hex');
+              console.log('Transaction hash:', inMsgHash);
+
+              // İşlemi izle
+              try {
+                console.log('Waiting for transaction to complete...');
+                const txInfo = await waitForTx(inMsgHash);
+                console.log('Transaction completed successfully:', txInfo);
+
+                // İşlem başarılı olduğunda detaylı log
+                console.log('Transaction success details:', {
+                  hash: inMsgHash,
                   amount: amountInNano.toString(),
+                  from: cleanUserAddress,
+                  to: address,
+                  jettonWalletAddress,
                   gas: transaction.messages[0].amount
-                }));
+                });
+
+                setTxStatus('success');
+
+                if (window.Telegram?.WebApp) {
+                  window.Telegram.WebApp.MainButton.setText('Payment Successful!');
+                  window.Telegram.WebApp.MainButton.show();
+                  window.Telegram.WebApp.sendData(JSON.stringify({
+                    status: 'success',
+                    token: 'USDT',
+                    payment_id: paymentId,
+                    tx_hash: result.boc,
+                    amount: amountInNano.toString(),
+                    gas: transaction.messages[0].amount
+                  }));
+                }
+              } catch (e: any) {
+                console.error('Error waiting for transaction:', e);
+                setErrorMessage(ERROR_MESSAGES.TRANSACTION_FAILED);
+                setTxStatus('error');
               }
             } catch (e: any) {
-              console.error('Error waiting for transaction:', e);
-              setErrorMessage(ERROR_MESSAGES.TRANSACTION_FAILED);
+              console.error('Error extracting transaction hash:', e);
+              setErrorMessage(ERROR_MESSAGES.API_ERROR);
               setTxStatus('error');
             }
-          } catch (e: any) {
-            console.error('Error extracting transaction hash:', e);
-            setErrorMessage(ERROR_MESSAGES.API_ERROR);
+          } catch (txError) {
+            console.error('Detailed transaction error:', {
+              error: txError,
+              transaction: transaction,
+              wallet: cleanUserAddress,
+              amount: amountInNano.toString(),
+              gas: transaction.messages[0].amount,
+              jettonWalletAddress
+            });
+            setErrorMessage(ERROR_MESSAGES.TRANSACTION_FAILED);
             setTxStatus('error');
           }
-        } catch (txError) {
-          console.error('Detailed transaction error:', {
-            error: txError,
-            transaction: transaction,
-            wallet: cleanUserAddress,
-            amount: amountInNano.toString(),
-            gas: transaction.messages[0].amount,
-            jettonWalletAddress
-          });
-          setErrorMessage(ERROR_MESSAGES.TRANSACTION_FAILED);
+        } catch (e) {
+          console.error('Failed to get jetton wallet address:', e);
+          setErrorMessage(ERROR_MESSAGES.JETTON_WALLET_NOT_FOUND);
           setTxStatus('error');
         }
       } else if (tokenType === 'TON') {
