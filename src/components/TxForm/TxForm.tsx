@@ -2,7 +2,6 @@ import React, { useCallback, useState, useEffect } from 'react';
 import './style.scss';
 import { SendTransactionRequest, TonConnectButton, useTonConnectUI, useTonWallet } from "@tonconnect/ui-react";
 import { beginCell, storeStateInit, toNano, Address, Cell } from "@ton/core";
-import { z } from 'zod';
 import { 
   USDT_ADDRESS, 
   USDT_DECIMALS,
